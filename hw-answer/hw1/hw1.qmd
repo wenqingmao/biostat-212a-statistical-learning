@@ -1,0 +1,543 @@
+---
+title: "Biostat 212a Homework 1"
+subtitle: "Due Jan 23, 2024 @ 11:59PM"
+author: "Wenqing Mao, UID:806332971"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+format:
+  html:
+    theme: cosmo
+    embed-resources: true
+    number-sections: true
+    toc: true
+    toc-depth: 4
+    toc-location: left
+    code-fold: false
+engine: knitr
+knitr:
+  opts_chunk: 
+    fig.align: 'center'
+    # fig.width: 6
+    # fig.height: 4
+    message: FALSE
+    cache: false
+---
+
+## Filling gaps in lecture notes (10pts)
+
+Consider the regression model
+$$
+Y = f(X) + \epsilon,
+$$
+where $\operatorname{E}(\epsilon) = 0$. 
+
+### Optimal regression function
+
+Show that the choice
+$$
+f_{\text{opt}}(X) = \operatorname{E}(Y | X)
+$$
+minimizes the mean squared prediction error
+$$
+\operatorname{E}\{[Y - f(X)]^2\},
+$$
+where the expectations averages over variations in both $X$ and $Y$. (Hint: condition on $X$.)
+
+**Answer:**
+
+According to the law of iterated expectation, we have
+
+$$
+\operatorname{E}\{[Y - f(X)]^2\} = \operatorname{E}\{\operatorname{E}\{[Y - f(X)]^2|X\}\}
+$$
+As expectation is a linear operator, to minimize $\operatorname{E}\{[Y - f(X)]^2\}$, we only need to minimize the inner expectation $\operatorname{E}\{[Y - f(X)]^2|X\}$ for each $X$. That is
+
+$$
+f(X) = argmin_{f(X)}\operatorname{E}\{[Y - f(X)]^2|X\}
+$$
+
+Decompose the inner expecation by adding and subtracting $\operatorname{E}(Y|X)$:
+
+$$
+\begin{align}
+\operatorname{E}\{[Y - f(X)]^2|X\} &= \operatorname{E}\{[Y - \operatorname{E}(Y|X) + \operatorname{E}(Y|X) - f(X)]^2|X\}\\
+&=\operatorname{E}\{[Y - \operatorname{E}(Y|X)]^2|X\}+\operatorname{E}\{[\operatorname{E}(Y|X) - f(X)]^2|X\}\\
+&+2\operatorname{E}\{[Y - \operatorname{E}(Y|X)]|X\}\operatorname{E}\{[\operatorname{E}(Y|X) - f(X)]|X\}
+\end{align}
+$$
+Let's focus on the last term. As $\operatorname{E}(Y|X)$ - f(X) is a constant, we can pull it outside the expectation and get
+$$
+\begin{align}
+&2(\operatorname{E}(Y|X) - f(X))\operatorname{E}\{[Y - \operatorname{E}(Y|X)]|X\}\\
+&=\underbrace{2(\operatorname{E}(Y|X) - f(X))}_{\text{constant}}[\operatorname{E}(Y|X)-\operatorname{E}[\operatorname{E}(Y|X)|X]]\\
+&=\underbrace{2(\operatorname{E}(Y|X) - f(X))}_{\text{constant}}[\operatorname{E}(Y|X)-\operatorname{E}(Y|X)]\\
+&=0
+\end{align}
+$$
+
+Thus, we have
+
+$$
+\begin{align}
+\operatorname{E}\{[Y - f(X)]^2|X\} &= \operatorname{E}\{[Y - \operatorname{E}(Y|X)]^2|X\}+\operatorname{E}\{[\operatorname{E}(Y|X) - f(X)]^2|X\}\\
+\end{align}
+$$
+The only term that depends on $f(X)$ is the second term. Thus, to minimize $\operatorname{E}\{[Y - f(X)]^2|X\}$, we only need to minimize the second term. That is $f(X) = \operatorname{E}(Y|X)$.
+
+### Bias-variance trade-off
+
+Given an estimate $\hat f$ of $f$, show that the test error at a $x_0$ can be decomposed as
+$$
+\operatorname{E}\{[y_0 - \hat f(x_0)]^2\} = \underbrace{\operatorname{Var}(\hat f(x_0)) + [\operatorname{Bias}(\hat f(x_0))]^2}_{\text{MSE of } \hat f(x_0) \text{ for estimating } f(x_0)} + \underbrace{\operatorname{Var}(\epsilon)}_{\text{irreducible}},
+$$
+where the expectation averages over the variability in $y_0$ and $\hat f$.
+
+**Answer:**
+
+Since  $y_{0} =f(x_{0})+\epsilon$,  we plug in $y_{0}$ and get 
+
+$$
+\begin{align}
+\operatorname{E}\{[y_0 - \hat f(x_0)]^2&=\operatorname{E}\{[f(x_{0})+\epsilon - \hat f(x_0)]^2\}\\
+&=\operatorname{E}\{[f(x_{0}) - \hat f(x_0)]^2\}+\operatorname{E}\{\epsilon^2\}+2\underbrace{\operatorname{E}\{[f(x_{0}) - \hat f(x_0)]\epsilon\}}_{=\operatorname{E}\{f(x_{0}) - \hat f(x_0)\}\operatorname{E}\{\epsilon\}=0}\\
+&=\operatorname{E}\{[f(x_{0}) - \hat f(x_0)]^2\}+\operatorname{E}\{\epsilon^2\}\\
+&=\operatorname{E}\{[f(x_{0}) - \hat f(x_0)]^2\}+\operatorname{Var}(\epsilon)\\
+\end{align}
+$$
+Decompose the first term by adding and subtracting $\operatorname{E}(\hat f(x_0))$:
+
+$$
+\begin{align}
+\operatorname{E}\{[f(x_{0}) - \hat f(x_0)]^2\}&=\operatorname{E}\{[f(x_{0}) - \operatorname{E}(\hat f(x_0))+\operatorname{E}(\hat f(x_0)) - \hat f(x_0)]^2\}\\
+&=\operatorname{E}\{[f(x_{0}) - \operatorname{E}(\hat f(x_0))]^2\}+\operatorname{E}\{[\operatorname{E}(\hat f(x_0)) - \hat f(x_0)]^2\}+2\operatorname{E}\{[f(x_{0}) - \operatorname{E}(\hat f(x_0))][\operatorname{E}(\hat f(x_0)) - \hat f(x_0)]\}
+\end{align}
+$$
+Let's focus on the cross term. As $\hat f(x_0)$ is a constant, we have $\operatorname{E}(\hat f(x_0)) - \hat f(x_0)=0$, so the cross term is 0. Then we have
+
+$$
+\begin{align}
+\operatorname{E}\{[f(x_{0}) - \hat f(x_0)]^2\}&=\operatorname{E}\{[f(x_{0}) - \operatorname{E}(\hat f(x_0))]^2\}+\operatorname{E}\{[\operatorname{E}(\hat f(x_0)) - \hat f(x_0)]^2\}\\
+&=\operatorname{Bias}(\hat f(x_0))^2+\operatorname{Var}(\hat f(x_0))\\
+\end{align}
+$$
+where $\operatorname{Bias}(\hat f(x_0)) = \operatorname{E}[\hat f(x_0)] - f(x_0)$.
+
+Finally, we prove that
+
+$$
+\operatorname{E}\{[y_0 - \hat f(x_0)]^2\} = \operatorname{Var}(\hat f(x_0)) + [\operatorname{Bias}(\hat f(x_0))]^2 + \operatorname{Var}(\epsilon)
+$$
+
+## ISL Exercise 2.4.3 (10pts)
+
+**(a)**
+```{r, eval = F}
+bias_squared = c(1.1, 0.4, 0.2, 0.1, 0)
+variance = c(0, 0.1, 0.25, 0.5, 1.3)
+bayes_error = c(1, 1, 1, 1, 1)
+test_error = bias_squared + variance + bayes_error
+train_error = c(1.8, 1.2, 0.8, 0.6, 0.3)
+
+curves <- data.frame(x = seq(0, 20, 5),
+                     y = c(bias_squared, variance, bayes_error, test_error, train_error),
+                     group = rep(c("Squared Bias", "Variance","Irreducible Error", "Test Error", "Train Error"), each = 5))
+
+ggplot(data = curves, aes(x = x, y = y, color=group)) +
+  geom_smooth(method = "loess", span=1, se = F) +
+  xlab("Flexibility") +
+  ylab("Errors") +
+  ggtitle("Bias-Variance Tradeoff")
+  
+```
+**(b)**
+
+- Irriducible error (red line): The error that can't be reduced by any model no matter how complex it is. This error is caused by the noise in the data generation process and are irrelevent to the model, so it is a contant line in the plot.
+
+- Squared bias (yellow curve): The error appears because the simplified model can not capture the true relationship between predictors and response in the real-world. This error can be reduced by using more complex models, so the yellow curve is decreasing as the model becomes more flexible.
+
+- Variance (pink curve): Variance refers to the sensitivity of the model to fluctuations in the training data. This error appears because a too complex model may overfit the training data, that is, a small fluctuation in the training data may cause a large change in the model. Thus, it is a increasing curve as the model becomes more flexible.
+
+- Test error (green curve): The test error is the sum of squared bias, variance and irreducible error. It is the sum of the yellow, pink and red curves in the plot. It is a U-shaped curve, because the squared bias is decreasing while the variance is increasing as the model becomes more flexible.
+
+- Train error (blue curve): It refers to the error of the model on the same data it was trained on. It is entirely possible for the training error to be very low, especially if the model is complex enough to fit all the training data points perfectly. So, the blue curve is monotonically decreasing as the model becomes more flexible.
+
+
+## ISL Exercise 2.4.4 (10pts)
+
+**(a) Describe three real-life applications in which classification might be useful. Describe the response, as well as the predictors. Is the goal of each application inference or prediction? Explain your answer.**
+**Answer:**
+
+- Default detection in commercial banks. The response is whether a customer will default, and the predictors are customer's age, income, credit history, etc. The goal is prediction, because the bank wants to predict whether a customer will default, and then decide whether to approve or deny the loan request from the customer.
+
+- Biostatisticians use classification model to determine whether a individual has a disease based on his/her symptoms. The response is whether a individual has a disease, and the predictors are individual's symptom details. The goal is prediction, because the doctor wants to predict whether a individual get infected with a certain disease, and treat them accordingly.
+
+- Zoologists use classification model to determine an wild animal's species. The response is the animal's species, and the predictors are animal's physical features. This is a inference problem when the zoologist wants to know which features are most important for distinguishing between species, and then can use these features to determine the species of a new animal or unclassified ones.
+
+**(b) Describe three real-life applications in which regression might be useful. Describe the response, as well as the predictors. Is the goal of each application inference or prediction? Explain your answer.**
+**Answer:**
+
+- Insurance companies usually use regression to predict individual's healthcare expenses. The response is healthcare expense amount, and the predictors are individual's age, smoking history, alcohol use, etc. The goal is prediction, because the insurance company wants to predict their expense amount, and then charge them accordingly.
+
+- Investment companies usually use regression to predict stock price. The response is stock price, and the predictors are company's fundamental information, financial report, moving average price, momentum, etc. The goal is prediction, because the investment company wants to predict the stock price, and then decide whether to buy or sell the stock.
+
+- Analysis GDP of a country. The response is GDP, and the predictors are population, interest rates, unemployment rate, etc. The goal is inference, as economists want to know how different macroeconomic variables affect GDP, which group of variables are more important to a country, and will changing a certain variable increase the GDP?
+
+**(c) Describe three real-life applications in which cluster analysis might be useful.**
+**Answer:**
+
+- Gene expression analysis in Bioinformatics. Cluster analysis can be used to group genes with similar expression patterns. This can help biologists to understand the function of genes.
+
+- Market segmentation in E-commerce companies. Cluster analysis can be used to group customers with similar purchasing behavior. This can help companies to identify their target customers.
+
+- Image Segmentation in Computer Vision. Cluster analysis can be used to group pixels with similar color, texture or intensity. This can help computer to understand the content of an image.
+
+## ISL Exercise 2.4.10 (30pts)
+
+Your can read in the `boston` data set directly from url <https://raw.githubusercontent.com/ucla-biostat-212a/2024winter/master/slides/data/Boston.csv>. A documentation of the `boston` data set is [here](https://www.rdocumentation.org/packages/ISLR2/versions/1.3-2/topics/Boston).
+
+::: {.panel-tabset}
+
+#### R
+
+```{r, evalue = F}
+library(tidyverse)
+
+Boston <- read_csv("https://raw.githubusercontent.com/ucla-biostat-212a/2024winter/master/slides/data/Boston.csv", col_select = -1) %>% 
+  print(width = Inf)
+```
+
+**(a) How many rows are in this data set? How many columns? What do the rows and columns represent?**
+```{r, evalue = F}
+dim(Boston)
+```
+**Answer:** There are 506 rows and 13 columns in this data set. Each row represents 1 of 506 suburbs of Boston, and each column represents characteristics of the suburb that may be relevant to the price of houses.
+
+**(b) Make some pairwise scatterplots of the predictors (columns) in this data set. Describe your findings.**
+```{r, evalue = F, fig.width=12, fig.height=12, message = FALSE}
+library(GGally) 
+ggpairs(Boston, lower=list(continuous=wrap("points", alpha=0.3, size=0.3)),
+        diag=list(continuous='barDiag')) + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 3))
+```
+- `indus` (proportion of non-retail business) is positively correlated with `nox` (nitrogen oxides concentration),  `tax` (property-tax rate), `age` (proportion of units built prior to 1940) and `lstat` (percentage of  lower status of the population), and negativelly correlated with `dis` (weighted distances to five Boston employment centres). It may indicate that the suburbs with more non-retail business have higher nitrogen oxides concentration, higher property-tax rate, higher proportion of owner-occupied units built prior to 1940 and lower status of the population, and are further away from Boston employment centres.
+
+- `tax` (property-tax rate) and `rad` (accessibility to radial highways) are strongly correlated with a correlation coefficient of 0.91. It may indicate that the property-tax rate is higher in suburbs with more accessibility to radial highways. However, there is obvious outliers in the scatter plot, which may affect the correlation coefficient.
+
+- `medv` (median value of owner-occupied homes) and `lstat` (lower status of the population) are strongly and negatively correlated with a correlation coefficient of -0.74. It may indicate that the median value of owner-occupied homes is higher in suburbs with fewer proportion of lower status population.
+
+**(c) Are any of the predictors associated with per capita crime rate? If so, explain the relationship.**
+
+**Answer:** 
+Yes, `nox`, `age` and `lstat` are positively associated with per capita crime rate, and `dis` is negatively associated with per capita crime rate. It may indicate that the suburbs with higher nitrogen oxides concentration, higher proportion of units built prior to 1940 and higher percentage of lower status population have higher per capita crime rate, and the suburbs further away from Boston employment centres have lower per capita crime rate.
+
+**(d) Do any of the census tracts of Boston appear to have particularly high crime rates? Tax rates? Pupil-teacher ratios? Comment on the range of each predictor.**
+
+**Answer:**
+```{r, evalue = F}
+Boston %>% 
+  select(crim, tax, ptratio) %>% 
+  summary()
+```
+From the density bar plots on the diagonal above, there are few census tracts with particularly high crime rates, tax rates and pupil-teacher ratios.
+- The range of `crim` is 0.00632 to 88.9762.
+- The range of `tax` is 187 to 711.
+- The range of `ptratio` is 12.6 to 22.
+
+**(e) How many of the census tracts in this data set bound the Charles river?**
+
+**Answer:** 
+```{r, evalue = F}
+Boston %>% 
+  filter(chas == 1) %>% 
+  nrow()
+```
+There are 35 census tracts in this data set bound the Charles river.
+
+**(f) What is the median pupil-teacher ratio among the towns in this data set?**
+
+**Answer:** 
+```{r, evalue = F}
+median(Boston$ptratio)
+```
+The median pupil-teacher ratio among the towns in this data set is 19.05.
+
+**(g) Which census tract of Boston has lowest median value of owner- occupied homes? What are the values of the other predictors for that census tract, and how do those values compare to the overall ranges for those predictors? Comment on your findings.**
+
+**Answer:** 
+```{r, evalue = F}
+Boston %>% 
+  filter(medv == min(medv))
+```
+Except `chas`, all others predictors are continuous, so we can calculate the quantile of the values in the census tract with lowest `medv`.
+```{r, evalue = F}
+continuous <- Boston %>% 
+  select(-chas)
+
+# create a list of ecdf functions
+ecdfs <- lapply(continuous, ecdf)
+
+# find the census tract with lowest medv
+selected_rows <- continuous[continuous$medv==min(continuous$medv),]
+
+# calculate the quantile of the values in the census tract with lowest medv
+quantiles <- mapply(function(f, column) f(column), ecdfs, selected_rows)
+print(quantiles)
+```
+In the census tract with lowest `medv`:
+- The values of `age` and `rad` are the highest in our dataset, which means all the units are built prior to 1940 and the accessibility to radial highways is the highest. 
+- The values of `crim`, `indus`, `nox`, `tax`, `ptratio` and `lstat` are also extramely high and above 75% quantile of our dataset, which means the crime rate, proportion of non-retail business, nitrogen oxides concentration, property-tax rate, pupil-teacher ratio and percentage of lower status of the population are relatively high. 
+- The values of `zn` are above the average, which means the proportion of residential land zoned for lots over 25,000 sq.ft. is relatively high.
+- The value of `rm` and `dis` are below 25% quantile of our dataset, which means the number of rooms per dwelling is relatively low, and they are relatively closer to the five Boston employment centres.
+
+For dummy variable `chas`, we can calculate the proportion of census tracts with `chas` equal to 1 and 0. 
+```{r, evalue = F}
+prop.table(table(Boston$chas))
+```
+we can see that 93.1% of census tracts have `chas` equal to 0, and 6.9% of census tracts have `chas` equal to 1. So the census tract with lowest `medv` is in the majority group of `chas`, which is `chas` equal to 0.
+
+**(h) In this data set, how many of the census tracts average more than seven rooms per dwelling? More than eight rooms per dwelling? Comment on the census tracts that average more than eight rooms per dwelling.**
+
+**Answer:** 
+```{r, evalue = F}
+Boston %>% 
+  filter(rm > 7) %>% 
+  nrow()
+```
+```{r, evalue = F}
+Boston %>% 
+  filter(rm > 8) %>% 
+  nrow()
+```
+There are 64 census tracts average more than seven rooms per dwelling, and 13 census tracts average more than eight rooms per dwelling.
+
+```{r, evalue = F}
+Boston %>% 
+  filter(rm > 8)
+```
+The census tracts that average more than 8 rooms per dwelling have relatively low crime rates, relatively low proportion of non-retail business, relatively low property-tax rate, relatively low proportion of units built prior to 1940, relatively low nitrogen oxides concentration, relatively high accessibility to radial highways, relatively low proportion of lower status population, relatively low pupil-teacher ratio and relatively high median value of owner-occupied homes.
+
+#### Python
+
+```{python}
+import pandas as pd
+import io
+import requests
+
+url = "https://raw.githubusercontent.com/ucla-econ-425t/2023winter/master/slides/data/Boston.csv"
+s = requests.get(url).content
+Boston = pd.read_csv(io.StringIO(s.decode('utf-8')), index_col = 0)
+Boston
+```
+
+
+:::
+
+## ISL Exercise 3.7.3 (12pts)
+**Answer**
+(a) option iii is true. 
+
+For a fixed value of IQ and GPA, high school graduates earn more, on average, than college graduates provided that the GPA is high enough. Because, for i and ii, we don what value of GPA is fixed at, so the starting salary is unsure. But, for iii and iv, as GPA is high enough, there exist a threshold beyong which the starting salary of high school graduates is higher than that of college graduates.
+
+(b)
+When IQ = 110, GPA = 4.0, and Level = 1, the predicted salary is 137.1 + 22.7 × 11 + 20.9 × 4.0 + 35.2 × 1 + 0.01 × 11 × 4.0 − 10.2 × 1 × 4.0 = 137.1 + 249.7 + 83.6 + 35.2 + 0.44 − 40.8 = 505.14
+$$
+Predicted\,Salary = 50 + 20 × 4.0 + 0.07 × 110 + 35 × 1 + 0.01 × 4.0 × 110 − 10 × 4.0 × 1 = 137.1 
+$$
+(c) False. Because the coefficient itself does not imply significancxe. We need to see the p-value of the coefficient to determine whether there is a significant evidence of the interaction effect.
+
+## ISL Exercise 3.7.15 (20pts)
+```{r, evalue = F}
+library(tidyverse)
+
+Boston <- read_csv("https://raw.githubusercontent.com/ucla-biostat-212a/2024winter/master/slides/data/Boston.csv", col_select = -1) %>% 
+  print(width = Inf)
+```
+
+**(a) Fit simple linear regression model for each predictor.**
+```{r, evalue = F}
+reg_zn = lm (crim ~ zn , data = Boston)
+summary(reg_zn)
+```
+```{r, evalue = F}
+reg_indus = lm(crim ~ indus, data=Boston)
+summary(reg_indus)
+```
+```{r, evalue = F}
+reg_chas = lm(crim ~ chas, data=Boston)
+summary(reg_chas)
+```
+```{r, evalue = F}
+reg_nox = lm(crim ~ nox, data=Boston)
+summary(reg_nox)
+```
+```{r, evalue = F}
+reg_rm = lm(crim ~ rm, data=Boston)
+summary(reg_rm)
+```
+```{r, evalue = F}
+reg_age = lm(crim ~ age, data=Boston)
+summary(reg_age)
+```
+```{r, evalue = F}
+reg_dis = lm(crim ~ dis, data=Boston)
+summary(reg_dis)
+```
+```{r, evalue = F}
+reg_rad = lm(crim ~ rad, data=Boston)
+summary(reg_rad)
+```
+```{r, evalue = F}
+reg_tax = lm(crim ~ tax, data=Boston)
+summary(reg_tax)
+```
+```{r, evalue = F}
+reg_ptratio = lm(crim ~ ptratio, data=Boston)
+summary(reg_ptratio)
+```
+```{r, evalue = F}
+reg_lstat = lm(crim ~ lstat, data=Boston)
+summary(reg_lstat)
+```
+```{r, evalue = F}
+reg_medv = lm(crim ~ medv, data=Boston)
+summary(reg_medv)
+```
+Summarize all the simple linear regression results in a dataframe:
+```{r, evalue = F}
+var_list = list("zn","indus","chas","nox","rm","age","dis","rad","tax","ptratio","lstat","medv")
+df <- as.data.frame(matrix(NA, nrow =length(var_list) , ncol = 4))
+names(df) <- c("Estimate","Std. Error","t value","Pr(>|t|)")
+rownames(df) <- var_list
+
+for (var in var_list){
+  df[var,] <- summary(get(paste0("reg_",var)))$coefficients[2,]
+}
+
+print(df)
+```
+***Answer:***
+When fit simple linear regression model for each predictor individually, we can see that `indus`, `nox`, `age`, `rad`,`tax`, `ptratio` and `lstat` have average positive effects on `crim`, while `zn`, `chas`, `rm`, `dis` and `medv` have average negative effects on `crim`. It means that the crime rate is higher in areas with more industrial land, more nitrogen oxides concentration, more old houses, more accessibility to radial highways, higher property-tax rate, higher pupil-teacher ratio and higher proportion of lower status population. On the contrary, the crime rate is lower in areas with more residential land, more nitric oxides concentration, more old houses, more accessibility to radial highways, higher property-tax rate, higher pupil-teacher ratio and higher proportion of lower status population.
+
+Except for `chas`, the estimated beta of all the other predictors are significant at the 0.1% significance level.
+
+```{r, evalue = F}
+library(ggplot2)
+library(gridExtra)
+plots_list <- list()
+for (variable in names(Boston)) {
+  if (variable != "crim") {
+    p <- ggplot(Boston, aes_string(x = variable, y = "crim")) +
+         geom_point(size=0.3,alpha=0.5) + 
+         theme_minimal() +
+         ggtitle(paste("crim", "vs", variable))
+    plots_list[[length(plots_list) + 1]] <- p
+  }
+}
+do.call(gridExtra::grid.arrange, c(plots_list, ncol = 4))
+```
+From the point plots above, we can see that there are upward trends in `nox`, `age`, and `lstat`, and downward trends in `rm`, `dis`, and `medv`. The other predictors do not show obvious trends. 
+
+**(b) Fit a multiple regression model using all predictors.**
+```{r, evalue = F}
+reg_all = lm(crim ~ .-crim, data=Boston)
+summary(reg_all)
+```
+***Answer:***
+From the regression result above, `zn`, `rm`, `rad`, and `lstat` have average positive effects on `crim`, it means that the crime rate is higher in areas with more industrial land, more nitrogen oxides concentration, more old houses, more accessibility to radial highways, higher property-tax rate, higher pupil-teacher ratio and higher proportion of lower status population. And `indus`, `chas`, `nox`, `age`, `dis`, `tax`, `ptratio` and `medv` have average negative effects on `crim`, which means that the crime rate is lower in areas with more residential land, more nitrogen oxides concentration, more old houses, more accessibility to radial highways, higher property-tax rate, higher pupil-teacher ratio and higher proportion of lower status population.
+
+We can reject the null hypothesis that $\beta_{j}=0$ for `zn`, `nox`, `dis`, `rad`, `lstat` and `medv` at the 5% significance level.
+
+**(c) How do your results from (a) compare to your results from (b)? Create a plot displaying the univariate regression coefficients from (a) on the x-axis, and the multiple regression coefficients from (b) on the y-axis. That is, each predictor is displayed as a single point in the plot. Its coefficient in a simple linear regres- sion model is shown on the x-axis, and its coefficient estimate in the multiple linear regression model is shown on the y-axis.**
+
+***Answer:***
+```{r, evalue = F}
+reg_coef <- data.frame(variable = names(Boston)[-1], 
+                       univariate = df$Estimate, 
+                       multiple = summary(reg_all)$coefficients[-1,1])
+ggplot(reg_coef, aes(x = univariate, y = multiple)) +
+  geom_point(aes(color = variable)) +
+  geom_abline(intercept = 0, slope = 1, color = "red") +
+  geom_text(aes(label = variable), hjust = 0, vjust = 0, size=2) +
+  ggtitle("Univariate vs. Multiple Regression Coefficients")
+```
+From the plot above, we can see that most of the points are located around the red line, which means that the coefficients of most predictors in simple regression model are similar to the coefficients in multiple linear regression model. However, the coefficients of `rm` in multiple regression model are larger than the coefficients in simple linear regression model, and the coefficients of `nox` in multiple regression model are much smaller than the coefficients in simple linear regression model.
+
+**(d) Is there evidence of non-linear association between any of the predictors and the response? To answer this question, for each predictor X, fit a model of the form**
+$$
+Y = \beta_0 + \beta_1 X + \beta_2 X^2 + \beta_3 X^3 + \epsilon.
+$$
+
+***Answer:***
+We don't apply polynomial regression to `chas` because it is a dummy variable. 
+
+```{r, evalue = F}
+poly_zn <- lm(crim ~ zn + I(zn^2) + I(zn^3), data = Boston)
+summary(poly_zn)
+```
+```{r, evalue = F}
+poly_indus <- lm(crim ~ indus + I(indus^2) + I(indus^3), data = Boston)
+summary(poly_indus)
+```
+```{r, evalue = F}
+poly_nox <- lm(crim ~ nox + I(nox^2) + I(nox^3), data = Boston)
+summary(poly_nox)
+```
+```{r, evalue = F}
+poly_rm <- lm(crim ~ rm + I(rm^2) + I(rm^3), data = Boston)
+summary(poly_rm)
+```
+```{r, evalue = F}
+poly_age <- lm(crim ~ age + I(age^2) + I(age^3), data = Boston)
+summary(poly_age)
+```
+```{r, evalue = F}
+poly_dis <- lm(crim ~ dis + I(dis^2) + I(dis^3), data = Boston)
+summary(poly_dis)
+```
+```{r, evalue = F}
+poly_rad <- lm(crim ~ rad + I(rad^2) + I(rad^3), data = Boston)
+summary(poly_rad)
+```
+```{r, evalue = F}
+poly_tax <- lm(crim ~ tax + I(tax^2) + I(tax^3), data = Boston)
+summary(poly_tax)
+```
+```{r, evalue = F}
+poly_ptratio <- lm(crim ~ ptratio + I(ptratio^2) + I(ptratio^3), data = Boston)
+summary(poly_ptratio)
+```
+```{r, evalue = F}
+poly_lstat <- lm(crim ~ lstat + I(lstat^2) + I(lstat^3), data = Boston)
+summary(poly_lstat)
+```
+```{r, evalue = F}
+poly_medv <- lm(crim ~ medv + I(medv^2) + I(medv^3), data = Boston)
+summary(poly_medv)
+```
+Summarize all the polynomial regression results in a dataframe (except `chas`):
+```{r, evalue = F}
+var_list = list("zn","indus","nox","rm","age","dis","rad","tax","ptratio","lstat","medv")
+df_poly <- as.data.frame(matrix(NA, nrow = length(var_list), ncol = 4))
+colnames(df_poly) <- c("linear p value", "quadratic p value", "cubic p value", "R suqared")
+names(df_poly) <- c("linear p value", "quadratic p value", "cubic p value", "R suqared")
+rownames(df_poly) <- var_list
+
+for (var in var_list){
+  df_poly[var, 1] <- summary(get(paste0("poly_",var)))$coefficients[2,4]
+  df_poly[var, 2] <- summary(get(paste0("poly_",var)))$coefficients[3,4]
+  df_poly[var, 3] <- summary(get(paste0("poly_",var)))$coefficients[4,4]
+  df_poly[var, 4] <- summary(get(paste0("poly_",var)))$r.squared
+}
+
+print(df_poly)
+``` 
+From the table above, we can see that the p values of quadratic and cubic form of `indus`, `nox`, `age`, `dis`, and `ptratio` are all less than 0.05, which means that the quadratic and cubic term are significant under 5% significance level and there is evidence of non-linear association between these predictors and the response `crim`.
+
+## Bonus question (20pts)
+
+For multiple linear regression, show that $R^2$ is equal to the correlation between the response vector $\mathbf{y} = (y_1, \ldots, y_n)^T$ and the fitted values $\hat{\mathbf{y}} = (\hat y_1, \ldots, \hat y_n)^T$. That is
+$$
+R^2 = 1 - \frac{\text{RSS}}{\text{TSS}} = [\operatorname{Cor}(\mathbf{y}, \hat{\mathbf{y}})]^2.
+$$
+
