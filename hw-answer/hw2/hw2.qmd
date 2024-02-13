@@ -1,0 +1,537 @@
+---
+title: "Biostat 212a Homework 2"
+subtitle: "Due Feb 6, 2024 @ 11:59PM"
+author: "Wenqing Mao, UID:806332971"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+format:
+  html:
+    theme: cosmo
+    embed-resources: true
+    number-sections: true
+    toc: true
+    toc-depth: 4
+    toc-location: left
+    code-fold: false
+engine: knitr
+knitr:
+  opts_chunk: 
+    fig.align: 'center'
+    # fig.width: 6
+    # fig.height: 4
+    message: FALSE
+    cache: false
+---
+
+## ISL Exercise 4.8.1 (10pts)
+**Answer:**
+
+$$
+\begin{align*}
+P(X)&=\frac{e^{\beta_{0}+\beta_{1}X}}{1+e^{\beta_{0}+\beta_{1}X}}\quad(4.2)\\
+&\Leftrightarrow P(X)(1+e^{\beta_{0}+\beta_{1}X})=e^{\beta_{0}+\beta_{1}X}\\
+&\Leftrightarrow P(X)+P(X)e^{\beta_{0}+\beta_{1}X}=e^{\beta_{0}+\beta_{1}X}\\
+&\Leftrightarrow P(X)=e^{\beta_{0}+\beta_{1}X}-P(X)e^{\beta_{0}+\beta_{1}X}\\
+&\Leftrightarrow P(X)=e^{\beta_{0}+\beta_{1}X}(1-P(X))\\
+&\Leftrightarrow \frac{P(X)}{1-P(X)}=e^{\beta_{0}+\beta_{1}X}\quad(4.3)
+\end{align*}
+$$
+
+## ISL Exercise 4.8.6 (10pts)
+**Answer:**
+
+**(a)**
+$$
+\begin{align*}
+P(X)&=\frac{e^{\beta_{0}+\beta_{1}X_{1}+\beta_{2}X_{2}}}{1+e^{\beta_{0}+\beta_{1}X_{1}+\beta_{2}X_{2}}}\\
+&=\frac{e^{-6+0.05X_{1}+X_{2}}}{1+e^{-6+0.05X_{1}+X_{2}}}\\
+\end{align*}
+$$
+Plug in $X_{1}=40$ and $X_{2}=3.5$, we can get $P(X)=0.3775$.
+
+**(b)**
+
+Holding $X_{2}=3.5$ fixed, and we aim to get the value of $X_{1}$ that makes $P(X)=0.5$. We can solve the equation 
+$$
+0.5=\frac{e^{-6+0.05X_{1}+3.5}}{1+e^{-6+0.05X_{1}+3.5}}
+$$ 
+and get $X_{1}=50$.
+
+In conclusion, the student in part (a) need to study 50 hours to have a 50 % chance of getting an A.
+
+## ISL Exercise 4.8.9 (10pts)
+**Answer:**
+ 
+**(a)**
+$$
+0.37=\frac{P(X)}{1-P(X)} \Rightarrow P(X)=\frac{0.37}{1+0.37}=0.27
+$$
+**(b)**
+$$
+odd \ ratio=\frac{P(X)}{1-P(X)}=\frac{0.16}{1-0.16}=0.19
+$$
+
+## ISL Exercise 4.8.13 (a)-(i) (50pts)
+
+**Answer:**
+
+**(a)**
+```{r}
+library(ISLR2)
+library(tidyverse)
+
+ Weekly <- as_tibble(Weekly) %>% 
+   print(width = Inf)
+```
+```{r}
+summary(Weekly)
+```
+
+```{r, message = FALSE}
+library(GGally) 
+ggpairs(Weekly[,1:8], lower=list(continuous=wrap("points", alpha=0.3, size=0.3)),
+        diag=list(continuous='barDiag')) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 3))
+```
+The first column of the plot is the time series trend of the market data. We can see that the returns are not stable and has a lot of fluctuations, and trade volumn is increasing over time.
+In terms of correlation, lag returns doesn't correlated with each other, but the volumn is strongly positively correlated with the Year, which means as the year goes by, the market volumn increases.
+From the histogram, we can see that the volume is right-skewed, and the lag returns are normally distributed.
+
+**(b)**
+```{r}
+logit_mod <- glm(
+  Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, 
+  family = binomial, 
+  data = Weekly
+  )
+
+summary(logit_mod)
+```
+The p-value of Lag2 is 0.0296 which is less than 0.05, so we can reject the null hypothesis and conclude that Lag2 is  statistical significant at 95% confidence level.
+
+**(c)**
+```{r}
+# Predicted labels from logistic regression
+logit_pred = ifelse(
+  predict(logit_mod, Weekly, type = "response") > 0.5,
+  "Up",
+  "Down"
+)
+
+# Confusion matrix
+logit_cfm = table(Predicted = logit_pred, Weekly = Weekly$Direction)
+logit_cfm
+```
+The confusion matrix can reflect mistakes of total test error, false positive and false negative. Test error is the proportion of mistakes made by the model. False positive is the observations that are actually down but predicted up, and false negative is the observations that are actually up but predicted down.
+```{r}
+# Test Error
+1-sum(diag(logit_cfm)) / sum(logit_cfm)
+
+# FPR
+logit_cfm['Up', 'Down'] / sum(logit_cfm[, 'Down'])
+
+# FNR
+logit_cfm['Down', 'Up'] / sum(logit_cfm[, 'Up'])
+```
+
+
+**(d)**
+```{r}
+# Subset data into training and testing sets
+Weekly_train <- Weekly %>% 
+  filter(Year < 2009)
+
+Weekly_test <- Weekly %>%
+  filter(Year >= 2009)
+
+# Fit logistic regression model
+logit_mod2 <- glm(
+  Direction ~ Lag2, 
+  family = binomial, 
+  data = Weekly_train
+)
+summary(logit_mod2)
+```
+
+```{r}
+# Predicted labels from logistic regression
+logit_pred2 = ifelse(
+  predict(logit_mod, Weekly_test, type = "response") > 0.5,
+  "Up",
+  "Down"
+)
+
+# Confusion matrix
+logit_cfm2 = table(Logit_Predicted = logit_pred2, Direction = Weekly_test$Direction)
+logit_cfm2 
+```
+```{r}
+# Accuracy
+(logit_cfm2['Up', 'Up'] + logit_cfm2['Down', 'Down']) / sum(logit_cfm2)
+```
+**(e)**
+```{r}
+library(MASS)
+# Fit LDA
+lda_mod <- lda(
+  Direction ~ Lag2, 
+  data = Weekly_train
+  )
+lda_mod
+```
+```{r}
+# Predicted labels from LDA
+lda_pred = predict(lda_mod, Weekly_test)
+
+# Confusion matrix
+lda_cfm = table(LDA_Predicted = lda_pred$class, Direction = Weekly_test$Direction)
+lda_cfm
+```
+```{r}
+# Accuracy
+(lda_cfm['Up', 'Up'] + lda_cfm['Down', 'Down']) / sum(lda_cfm)
+```
+**(f)**
+```{r}
+# Fit QDA
+qda_mod <- qda(
+  Direction ~ Lag2, 
+  data = Weekly_train
+  )
+
+qda_mod
+```
+```{r}
+# Predicted probabilities from QDA
+qda_pred = predict(qda_mod, Weekly_test)
+
+# Confusion matrix
+qda_cfm = table(QDA_Predicted = qda_pred$class, Direction = Weekly_test$Direction)
+qda_cfm
+```
+```{r}
+# Accuracy
+(qda_cfm['Up', 'Up'] + qda_cfm['Down', 'Down']) / sum(qda_cfm)
+```
+
+**(g)**
+```{r}
+# Fit KNN
+library(class)
+
+knn_pred <- knn(
+  train = Weekly_train[, c("Lag2")], 
+  test = Weekly_test[, c("Lag2")],
+  cl = Weekly_train$Direction, 
+  k = 1
+  )
+
+# Confusion matrix
+(knn_cfm = table(KNN_Predicted = knn_pred, Direction = Weekly_test$Direction))
+```
+```{r}
+# Accuracy
+(knn_cfm['Up', 'Up'] + knn_cfm['Down', 'Down']) / sum(knn_cfm)
+```
+
+**(h)**
+```{r}
+# Fit naive Bayes
+library(e1071)
+
+nb_mod <- naiveBayes(
+  Direction ~ Lag2,   
+  data = Weekly_train
+  )
+nb_mod
+```
+```{r}
+# Predicted labels from Naive Bayes
+nb_pred = predict(nb_mod, Weekly_test)
+
+# Confusion matrix
+(nb_cfm = table(NB_Predicted = nb_pred, Direction = Weekly_test$Direction))
+```
+```{r}
+# Accuracy
+(nb_cfm['Up', 'Up'] + nb_cfm['Down', 'Down']) / sum(nb_cfm)
+```
+
+**(i)**
+```{r}
+library(pROC)
+
+acc_f = function(cfm) {
+  (cfm['Up', 'Up'] + cfm['Down', 'Down']) / sum(cfm)
+}
+
+fpr_f = function(cfm) {
+  cfm['Up', 'Down'] / sum(cfm[, 'Down'])
+}
+
+fnr_f = function(cfm) {
+  cfm['Down', 'Up'] / sum(cfm[, 'Up'])
+}
+
+auc_f = function(pred) {
+  y = pred$y
+  pred_prob = pred$prob
+  roc_object <- roc(y, pred_prob)
+  auc_c = auc(roc_object)[1]
+  return(auc_c)
+}
+
+logit_pred_prob <- predict(logit_mod2, Weekly_test, type = "response")
+lda_pred_prob <- lda_pred$posterior[, 2]
+qda_pred_prob <- qda_pred$posterior[, 2]
+nb_pred_prob <- predict(nb_mod, Weekly_test, type = "raw")[, 2]
+knn_mod <- knn(
+  train = Weekly_train[, c("Lag2")], 
+  test = Weekly_test[, c("Lag2")],
+  cl = Weekly_train$Direction,
+  prob = TRUE,
+  k = 1
+  )
+knn_pred_prob <- 1 - attr(knn_mod, "prob") 
+
+row_names = c("Logit", "LDA", "QDA", "NB", "KNN")
+acc_v = sapply(list(logit_cfm, lda_cfm, qda_cfm, nb_cfm, knn_cfm), acc_f)
+fpr_v = sapply(list(logit_cfm, lda_cfm, qda_cfm, nb_cfm, knn_cfm), fpr_f)
+fnr_v = sapply(list(logit_cfm, lda_cfm, qda_cfm, nb_cfm, knn_cfm), fnr_f)
+auc_v = sapply(list(data.frame(y = Weekly_test$Direction,
+                             prob = logit_pred_prob), 
+                  data.frame(y = Weekly_test$Direction,
+                             prob = lda_pred_prob), 
+                  data.frame(y = Weekly_test$Direction,
+                             prob = qda_pred_prob), 
+                  data.frame(y = Weekly_test$Direction,
+                             prob = nb_pred_prob), 
+                  data.frame(y = Weekly_test$Direction,
+                             prob = knn_pred_prob)), 
+             auc_f)
+
+tibble(Classifier = row_names, 
+       ACC = acc_v, 
+       FPR =  fpr_v, 
+       FNR =  fnr_v, 
+       AUC = auc_v)
+```
+According to accuracy, the logistic model and LDA model have the highest accuracy, so they appear to be the best models. However, if we consider more metrics, KNN appears to be the best model. Because QDA model and Naive Bayes model have a extremely high False Positive Rate (equal to 1), and the False Positive Rate of Logistic model and LDA model are also very high. This means they tend to predict all observations as "Up" direction. But, KNN model has a moderate FPR and FNR (around 50%), and the AUC of KNN model is also the highest among all the models. 
+
+## Bonus question: ISL Exercise 4.8.13 Part (j) (30pts)
+**Answer:**
+
+- Feature Selection
+1. Log returns
+When conducting regression on financial time series data, it is common to use log returns as the response variable because it reduces the seasonal variation of the time series. Log return is the percentage change in the value of an asset over a period of time, which measures the relative change in the value of an asset. Log returns are calculated as the natural logarithm of the ratio of the final value to the initial value of an asset. As the unit is percentage in our data, we need to divide the original lag data by 100 and then plus one before taking the natural logarithm. 
+
+Let's first fit a logistic regression model with all log returns.
+```{r}
+# Experiment logistic model on log returns:
+
+logit_mod <- glm(
+  Direction ~ log(Lag1/100+1) + log(Lag2/100+1) + log(Lag3/100+1) + log(Lag4/100+1) + log(Lag5/100+1),
+  family = binomial, 
+  data = Weekly
+  )
+summary(logit_mod)
+```
+From the summary of the logistic model, we can see that the p-values of log return of lag2 are smaller than 0.05, which means it is significant. This result is same as that in part(b), while this log term has a smaller p-value(0.025) compared to that in part(0.030). So, we only keep this log term as one of the feature in final model.
+
+```{r}
+library(dplyr)
+
+# create log_lag2 
+Weekly <- Weekly %>%
+  mutate(log_lag2 = log(Lag2/100+1))
+```
+
+2. Volume
+To reduce the skewness of volume(shown in the histogram in part(a)), we also use log volume as one of the feature in the final model. We calculate the log volume by taking the natural logarithm of the volume data.
+
+```{r}
+# create log_volume 
+Weekly <- Weekly %>%
+  mutate(log_volume = log(Volume))
+```
+
+3. Interaction term
+Previous returns can affect how people behave in the following days, for example, people may trade more if the stock price has increased dramatically. So log returns may have interaction with trade volume. We also add an interaction term between lag2 and volume in the final model.
+
+- Split the data
+```{r}
+# Subset data into training and testing sets
+Weekly_train <- Weekly %>% 
+  filter(Year < 2009)
+
+Weekly_test <- Weekly %>%
+  filter(Year >= 2009)
+```
+
+- Final model fit
+```{r}
+# Experiment on Logistic model
+logit_mod <- glm(
+  Direction ~ log_lag2 + log(Volume) + log_lag2:log(Volume),
+  family = binomial, 
+  data = Weekly_train
+  )
+summary(logit_mod)
+
+# Predict labels from logistic model
+logit_pred = ifelse(
+  predict(logit_mod, Weekly_test, type = "response") > 0.5,
+  "Up",
+  "Down"
+)
+
+# Confusion matrix
+logit_cfm = table(Predicted = logit_pred, Weekly = Weekly_test$Direction)
+
+# Accuracy
+(logit_cfm['Up', 'Up'] + logit_cfm['Down', 'Down']) / sum(logit_cfm)
+```
+
+```{r}
+library(MASS)
+# Experiment on LDA model
+lda_mod <- lda(
+  Direction ~ log_lag2 + log(Volume) + log_lag2:log(Volume), 
+  data = Weekly_train
+  )
+lda_mod
+
+# Predicted labels from LDA
+lda_pred = predict(lda_mod, Weekly_test)
+
+# Confusion matrix
+lda_cfm = table(LDA_Predicted = lda_pred$class, Direction = Weekly_test$Direction)
+
+# Accuracy
+(lda_cfm['Up', 'Up'] + lda_cfm['Down', 'Down']) / sum(lda_cfm)
+```
+
+```{r}
+# Experiment on QDA model
+qda_mod <- qda(
+  Direction ~ log_lag2 + log(Volume) + log_lag2:log(Volume), 
+  data = Weekly_train
+  )
+qda_mod
+
+# Predicted probabilities from QDA
+qda_pred = predict(qda_mod, Weekly_test)
+
+# Confusion matrix
+qda_cfm = table(QDA_Predicted = qda_pred$class, Direction = Weekly_test$Direction)
+
+# Accuracy
+(qda_cfm['Up', 'Up'] + qda_cfm['Down', 'Down']) / sum(qda_cfm)
+```
+
+```{r}
+library(e1071)
+# Experiment on NB model: Since the naive Bayes model assume all predictors are independent, we will not include interaction term.
+nb_mod <- naiveBayes(
+  Direction ~ log_lag2 + log_volume,   
+  data = Weekly_train
+  )
+nb_mod
+
+# Predicted labels from Naive Bayes
+nb_pred = predict(nb_mod, Weekly_test)
+
+# Confusion matrix
+(nb_cfm = table(NB_Predicted = nb_pred, Direction = Weekly_test$Direction))
+
+# Accuracy
+(nb_cfm['Up', 'Up'] + nb_cfm['Down', 'Down']) / sum(nb_cfm)
+```
+
+- Experiment on KNN model with different choice of K:
+```{r}
+library(class)
+
+# Create a data frame to store the results
+results <- data.frame(Method = character(), 
+                      Accuracy = numeric(), 
+                      FPR = numeric(), 
+                      FNR = numeric())
+
+# Experiment on KNN model with different choice of K
+for (k in 1:10) { 
+  knn_pred <- knn(
+    train = Weekly_train[, c("log_lag2", "log_volume")], 
+    test = Weekly_test[, c("log_lag2", "log_volume")],
+    cl = Weekly_train$Direction, 
+    k = k
+    )
+  knn_cfm = table(KNN_Predicted = knn_pred, Direction = Weekly_test$Direction)
+  accuracy = (knn_cfm['Up', 'Up'] + knn_cfm['Down', 'Down']) / sum(knn_cfm)
+  FPR = knn_cfm['Up', 'Down'] / sum(knn_cfm[, 'Down'])
+  FNR = knn_cfm['Down', 'Up'] / sum(knn_cfm[, 'Up'])
+  results = rbind(results, data.frame(Method = paste("KNN,k=",k), 
+                                      Accuracy = accuracy, 
+                                      FPR = FPR, 
+                                      FNR = FNR))
+}
+
+results
+```
+- Evaluate performance
+```{r}
+# summary performance of all models
+acc_f = function(cfm) {
+  (cfm['Up', 'Up'] + cfm['Down', 'Down']) / sum(cfm)
+}
+
+fpr_f = function(cfm) {
+  cfm['Up', 'Down'] / sum(cfm[, 'Down'])
+}
+
+fnr_f = function(cfm) {
+  cfm['Down', 'Up'] / sum(cfm[, 'Up'])
+}
+
+acc_v = sapply(list(logit_cfm, lda_cfm, qda_cfm, nb_cfm), acc_f)
+fpr_v = sapply(list(logit_cfm, lda_cfm, qda_cfm, nb_cfm), fpr_f)
+fnr_v = sapply(list(logit_cfm, lda_cfm, qda_cfm, nb_cfm), fnr_f)
+
+performance = rbind(results, data.frame(Method = c("Logistic", "LDA", "QDA", "NB"), 
+                                        Accuracy = acc_v, 
+                                        FPR = fpr_v, 
+                                        FNR = fnr_v))
+
+print(performance)
+```
+From the summary above, we can see that the logistic model and LDA model have the same performance, which is common bahavior of these two models. According to Accuracy and False Negative Rate(FNR), the logistic model and LDA model have the best performance. However, logistic model and LDA model has the highest Flase Positive Rate(FPR). In terms of False Positive Rate, KNN model with k=8 has the best performance.
+
+The confusion matrix of Logistic model and LDA model is:
+```{r}
+logit_cfm
+```
+
+## Bonus question: ISL Exercise 4.8.4 (30pts)
+
+**Answer:**
+
+**(a)**
+As X is uniformly distributed on [0, 1], so the length of 10% of the range X we used to determine the observation's response is 0.1. This is true for any value of X, thus, the fraction of the available observations is $\frac{0.1}{1}=0.1$.
+
+**(b)**
+As (X1, X2) have a uniform joint probability distribution on [0, 1] × [0, 1]. 10% interval on X1 and 10% interval on X2 can form a square. This is true for any value of (X1, X2), thus, the fraction of the available observations is the area of the selected square divided by the total area, that is $\frac{0.1^2}{1^2}=0.01$.
+
+**(c)**
+Based on (a) and (b): the fraction of the available observations is $0.1^1/2^1$ for (a) and $0.1^2/1^2$ for (b). Thus, the faction used for a p-dimensional hypercube is $0.1^p/1^p$. Here, p = 100, so the fraction of the available observations we will use to make the predictionis $0.1^{100}/1^{100}=0.1^{100}$, which is a very small number.
+
+**(d)**
+As p is increasing, the fraction of the available observations to make the prediction is decreasing exponentially., which indicates that the training observations “near” any given test observation we will use becomes sparse. This sparsity means that to cover the new volume, exponentially more data is required. Without sufficient data, making reliable predictions becomes challenging because there aren't enough samples to make a good estimation for each local neighborhood. This is a drawback of the KNN model when p is large.
+
+**(e)**
+From the general formula derived in (c), we know that $fraction = \frac{length^p}{1^p}$, and, thus, we can derive that $length=\sqrt[p]{fraction}$. 
+
+When p=1, to include 10% of the train-ing observations, the length of the interval is 0.1.
+
+When p=2, to include 10% of the train-ing observations, the area of the square is $\sqrt[2]{0.1}\approx 0.32$.
+
+When p=100, to include 10% of the train-ing observations, the volume of the hypercube is $\sqrt[100]{0.1}\approx 0.98$.
