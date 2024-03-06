@@ -1,0 +1,749 @@
+---
+title: "Biostat 212a Homework 4"
+subtitle: "Due Mar. 5, 2024 @ 11:59PM"
+author: "Wenqing Mao, UID:806332971"
+date: today
+format:
+  html:
+    theme: cosmo
+    embed-resources: true
+    number-sections: true
+    toc: true
+    toc-depth: 4
+    toc-location: left
+    code-fold: false
+engine: knitr
+knitr:
+  opts_chunk: 
+    fig.align: 'center'
+    # fig.width: 6
+    # fig.height: 4
+    message: FALSE
+    cache: false
+---
+
+## ISL Exercise 8.4.3 (10pts)
+```{r}
+library(tidyverse)
+
+p1 <- seq(0, 1, 0.01)
+p2 <- 1 - p1
+
+# define the function of classification error
+classification_error <- 1 - pmax(p1, p2)
+
+# define the function of Gini index
+gini <- p1*(1-p1) + p2*(1-p2)
+
+# define the function of entropy
+entropy <- - p1*log(p1) - p2*log(p2)
+
+data.frame(p1, p2, classification_error, gini, entropy) %>%
+  pivot_longer(cols = c(classification_error, gini, entropy), names_to = "metrics") %>%
+  ggplot(aes(x = p1, y = value, col = factor(metrics))) + 
+  geom_line() + 
+  scale_y_continuous(breaks = seq(0, 1, 0.1)) + 
+  scale_color_hue(labels = c("Classification Error", "Entropy", "Gini")) +
+  labs(col = "Metrics", 
+       y = "Value", 
+       x = "P1")
+```
+
+## ISL Exercise 8.4.4 (10pts)
+Here is my answer to this question:
+![Answer](./Q4_answer.png)
+
+## ISL Exercise 8.4.5 (10pts)
+Method one: Majority vote approach 
+```{r}
+probs <- c(0.1, 0.15, 0.2, 0.2, 0.55, 0.6, 0.6, 0.65, 0.7, 0.75)
+
+cat("The number of red observations is: ", sum(probs >= 0.5), "\n")
+cat("The number of green observations is: ", sum(probs < 0.5))
+```
+The final classification under the majority vote approach is red.
+
+Method two: Average probability approach
+```{r}
+mean(probs)
+```
+The average probability is 0.45, which is less than 0.5. The final classification under the average probability approach is green.
+
+## ISL Lab 8.3. `Boston` data set (30pts)
+
+Follow the machine learning workflow to train regression tree, random forest, and boosting methods for predicting `medv`. Evaluate out-of-sample performance on a test set.
+
+**Answer:**
+
+Regression tree
+
+Load and summary data
+```{r, fig.width=12, fig.height=12, message = FALSE}
+library(GGally) 
+library(tidyverse)
+library(tidymodels)
+library(ISLR2)
+
+# Load the Boston data set
+data(Boston)
+
+# Summary of the data
+summary(Boston)
+
+ggpairs(Boston, lower=list(continuous=wrap("points", alpha=0.3, size=0.3)),
+        diag=list(continuous='barDiag')) + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 3))
+```
+Split the data into training and test sets
+```{r}
+set.seed(123)
+data_split <- initial_split(
+  Boston, 
+  prop = 0.75
+  )
+
+Boston_train <- training(data_split)
+dim(Boston_train)
+Boston_test <- testing(data_split)
+dim(Boston_test)
+```
+Build recipe
+```{r}
+rec <- recipe(medv ~ ., data = Boston_train) %>%
+  step_dummy(all_nominal()) %>%
+  step_normalize(all_numeric_predictors())
+```
+
+**Train regression tree**
+
+Regressuib tree model
+```{r}
+regtree_mod <- decision_tree(
+  cost_complexity = tune(),
+  tree_depth = tune(),
+  min_n = 10,
+  mode = "regression",
+  engine = "rpart"
+  ) 
+```
+Set workflow
+```{r}
+regtree_wf <- workflow() %>%
+  add_recipe(rec) %>%
+  add_model(regtree_mod)
+regtree_wf
+```
+Turning grid
+```{r}
+regtree_grid <- grid_regular(cost_complexity(range = c(-10, -2)), # set tuning range
+                          tree_depth(range = c(1, 10)),
+                          levels = c(100, 5))
+```
+10-fold Cross-validation
+```{r}
+set.seed(123)
+
+folds <- vfold_cv(Boston_train, v = 10)
+folds
+```
+Fit cross-validation
+```{r}
+regtree_fit <- regtree_wf %>%
+  tune_grid(
+    resamples = folds,
+    grid = regtree_grid,
+    metrics = metric_set(rmse, rsq)
+    )
+regtree_fit
+```
+Visualize CV results
+```{r}
+regtree_fit %>%
+  collect_metrics() %>%
+  print(width = Inf) %>%
+  filter(.metric == "rmse") %>%
+  mutate(tree_depth = as.factor(tree_depth)) %>%
+  ggplot(mapping = aes(x = cost_complexity, y = mean, color = tree_depth)) +
+  geom_point() + 
+  geom_line() + 
+  labs(x = "Cost Complexity", y = "CV RMSE")
+```
+Finalize regression tree model
+```{r}
+regtree_fit %>%
+  show_best("rmse")
+
+best_regtree <- regtree_fit %>%
+  select_best("rmse")
+best_regtree
+```
+Final workflow
+```{r}
+final_regtree_wf <- regtree_wf %>%
+  finalize_workflow(best_regtree)
+final_regtree_wf
+```
+Fit the whole training set, then predict the test cases
+```{r}
+final_regtree_fit <- 
+  final_regtree_wf %>%
+  last_fit(data_split)
+
+# Test metrics
+final_regtree_fit %>% 
+  collect_metrics()
+```
+Visualize the final model
+```{r}
+library(rpart.plot)
+final_regtree <- extract_workflow(final_regtree_fit)
+final_regtree %>%
+  extract_fit_engine() %>%
+  rpart.plot(roundint = FALSE)
+```
+```{r}
+library(vip)
+
+final_regtree %>% 
+  extract_fit_parsnip() %>% 
+  vip()
+```
+Summary: The final regression tree model has depth of 10 and cost complexity of 0.0013. The 3 most important variables are `rm`, `lstat` and `dis`, which means that the average number of rooms per dwelling, lower status of the population, and weighted distances to five Boston employment centers are the most important predictors to predict `medv`. The model estimate new `medv` values using the average values of `medv` in the terminal nodes(leaves) and has a relatively good performance with RMSE of 4.42 and R-squared of 0.78.
+
+**Train random forest**
+
+Random forest model
+```{r}
+rf_mod <- 
+  rand_forest(
+    mode = "regression",
+    # Number of predictors randomly sampled in each split
+    mtry = tune(),
+    # Number of trees in ensemble
+    trees = tune()
+  ) %>% 
+  set_engine("ranger")
+rf_mod
+```
+Set workflow
+```{r}
+rf_wf <- workflow() %>%
+  add_recipe(rec) %>%
+  add_model(rf_mod)
+rf_wf
+```
+Tuning grid
+```{r}
+rf_grid <- grid_regular(
+  trees(range = c(100L, 500L)), 
+  mtry(range = c(2L, 6L)),
+  levels = c(10, 5)
+  )
+```
+10-fold Cross-validation
+```{r}
+set.seed(123)
+
+folds <- vfold_cv(Boston_train, v = 10)
+```
+
+Fit cross-validation
+```{r}
+library(ranger)
+
+rf_fit <- rf_wf %>%
+  tune_grid(
+    resamples = folds,
+    grid = rf_grid,
+    metrics = metric_set(rmse, rsq)
+    )
+rf_fit
+```
+Visualize CV results
+```{r}
+rf_fit %>%
+  collect_metrics() %>%
+  print(width = Inf) %>%
+  filter(.metric == "rmse") %>%
+  mutate(mtry = as.factor(mtry)) %>%
+  ggplot(mapping = aes(x = trees, y = mean, color = mtry)) +
+  geom_point() + 
+  geom_line() + 
+  labs(x = "Number of Trees", y = "CV RMSE")
+```
+Finalize random forest model
+```{r}
+rf_fit %>%
+  show_best("rmse")
+
+best_rf <- rf_fit %>%
+  select_best("rmse")
+best_rf
+```
+Final workflow
+```{r}
+final_rf_wf <- rf_wf %>%
+  finalize_workflow(best_rf)
+final_rf_wf
+```
+Fit the whole training set, then predict the test cases
+```{r}
+final_rf_fit <- 
+  final_rf_wf %>%
+  last_fit(data_split)
+final_rf_fit
+
+# Test metrics
+final_rf_fit %>% 
+  collect_metrics()
+```
+Summary: Random forest algorithm grow multiple decision trees, the final random forest model has 233 trees and 4 predictors randomly sampled in each split. Random forest estimate new `medv` values using is the average of all the tree predictions in regression problem. The model has a relatively good performance with RMSE of 3.61 and R-squared of 0.84.
+
+**Train boosting**
+
+Train boosting model
+```{r}
+gb_mod <- 
+  boost_tree(
+    mode = "regression",
+    trees = 1000, 
+    tree_depth = tune(),
+    learn_rate = tune()
+  ) %>% 
+  set_engine("xgboost")
+gb_mod
+```
+Set workflow
+```{r}
+gb_wf <- workflow() %>%
+  add_recipe(rec) %>%
+  add_model(gb_mod)
+gb_wf
+```
+Tuning grid
+```{r}
+gb_grid <- grid_regular(
+  tree_depth(range = c(2L, 10L)),
+  learn_rate(range = c(-3, -1), trans = log10_trans()),
+  levels = c(5, 10)
+  )
+gb_grid
+```
+10-fold Cross-validation
+```{r}
+set.seed(123)
+
+folds <- vfold_cv(Boston_train, v = 10)
+```
+Fit cross-validation
+```{r}
+library(xgboost)
+
+gb_fit <- gb_wf %>%
+  tune_grid(
+    resamples = folds,
+    grid = gb_grid,
+    metrics = metric_set(rmse, rsq)
+    )
+gb_fit
+```
+Visualize CV results
+```{r}
+gb_fit %>%
+  collect_metrics() %>%
+  print(width = Inf) %>%
+  filter(.metric == "rmse") %>%
+  ggplot(mapping = aes(x = learn_rate, y = mean, color = factor(tree_depth))) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Learning Rate", y = "CV RMSE") +
+  scale_x_log10()
+```
+Finalize boosting model
+```{r}
+gb_fit %>%
+  show_best("rmse")
+
+best_gb <- gb_fit %>%
+  select_best("rmse")
+best_gb
+```
+Final workflow
+```{r}
+final_gb_wf <- gb_wf %>%
+  finalize_workflow(best_gb)
+final_gb_wf
+```
+Fit the whole training set, then predict the test cases
+```{r}
+final_gb_fit <- 
+  final_gb_wf %>%
+  last_fit(data_split)
+
+# Test metrics
+final_gb_fit %>% 
+  collect_metrics()
+```
+Summary: Gradient Boosting builds trees in a sequential manner, where each new tree aims to correct the errors made by the previous ones. The final gradient boosting model has 1000 trees, 6 levels of tree depth, and 0.01291 learning rate. The model estimates new `medv` values by adding trees that predict the residuals or errors of prior trees and it has a relatively good performance with RMSE of 3.71 and R-squared of 0.84.
+
+**Compare Performance**
+```{r}
+final_regtree_fit %>% 
+  collect_metrics() %>%
+  mutate(model = "Regression Tree") %>%
+  bind_rows(
+    final_rf_fit %>% collect_metrics() %>%
+      mutate(model = "Random Forest"),
+    final_gb_fit %>% collect_metrics() %>%
+      mutate(model = "Gradient Boosting")
+  ) %>%
+  select(model, .metric, .estimate) %>%
+  spread(.metric, .estimate)
+```
+
+
+## ISL Lab 8.3 `Carseats` data set (30pts)
+
+Follow the machine learning workflow to train classification tree, random forest, and boosting methods for classifying `Sales <= 8` versus `Sales > 8`. Evaluate out-of-sample performance on a test set.
+
+**Answer:**
+Load the data and create `Sales` binary response variable
+```{r}
+library(ISLR2)
+library(tidyverse)
+library(tidymodels)
+library(gtsummary)
+
+# Load the Carseats data set
+data(Carseats)
+Carseats <- Carseats %>%
+  mutate(Sales_bi = as.factor(ifelse(Sales <= 8, "No", "Yes"))) %>%
+  select(-Sales)
+```
+
+```{r, fig.height=7, message=FALSE}
+# Summary of the data
+Carseats %>% 
+  tbl_summary(
+    by = Sales_bi, # stratify by Sales_bi
+    statistic = list(all_continuous() ~ "{mean} ({sd})", 
+                     all_categorical() ~ "{n} ({p}%)"), 
+    missing = "ifany" 
+  )
+
+Carseats %>%
+  select(-c(ShelveLoc, Urban, US, Sales_bi)) %>%
+  ggpairs(lower=list(continuous=wrap("points", alpha=0.5, size=0.5)),
+        diag=list(continuous='barDiag')) + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+```
+Split the data into train and test sets
+```{r}
+set.seed(123)
+
+data_split <- initial_split(
+  Carseats,
+  prop = 0.8,
+  strata = Sales_bi
+  )
+data_split
+
+Carseats_train <- training(data_split)
+dim(Carseats_train)
+Carseats_test <- testing(data_split)
+dim(Carseats_test)
+```
+
+Build recipe
+```{r}
+class_rec <- 
+  recipe(
+    Sales_bi ~ ., 
+    data = Carseats_train
+  ) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  step_normalize(all_numeric_predictors())
+```
+
+**Train classification tree**
+
+Classification tree model
+```{r}
+classtree_mod <- decision_tree(
+  cost_complexity = tune(),
+  tree_depth = tune(),
+  min_n = 5,
+  mode = "classification",
+  engine = "rpart"
+  ) 
+```
+Set workflow
+```{r}
+classtree_wf <- workflow() %>%
+  add_recipe(class_rec) %>%
+  add_model(classtree_mod)
+```
+Tuning grid
+```{r}
+classtree_grid <- grid_regular(cost_complexity(range = c(-10, -1.5)),
+                          tree_depth(range = c(1L, 10L)),
+                          levels = c(100,5))
+```
+10-fold Cross-validation
+```{r}
+set.seed(123)
+
+folds <- vfold_cv(Carseats_train, v = 10)
+folds
+```
+Fit cross-validation
+```{r}
+classtree_fit <- classtree_wf %>%
+  tune_grid(
+    resamples = folds,
+    grid = classtree_grid,
+    metrics = metric_set(accuracy, roc_auc)
+    )
+classtree_fit
+```
+Visualize CV results
+```{r}
+classtree_fit %>%
+  collect_metrics() %>%
+  print(width = Inf) %>%
+  filter(.metric == "roc_auc") %>%
+  mutate(tree_depth = as.factor(tree_depth)) %>%
+  ggplot(mapping = aes(x = cost_complexity, y = mean, color = tree_depth)) +
+  geom_point() + 
+  geom_line() + 
+  labs(x = "Cost Complexity", y = "CV ROC AUC", color = "tree_depth") 
+```
+Finalize classification tree model
+```{r}
+classtree_fit %>%
+  show_best("roc_auc")
+
+best_classtree <- classtree_fit %>%
+  select_best("roc_auc")
+best_classtree
+```
+Final workflow
+```{r}
+final_classtree_wf <- classtree_wf %>%
+  finalize_workflow(best_classtree)
+```
+Fit the whole training set, then predict the test cases
+```{r}
+final_classtree_fit <- 
+  final_classtree_wf %>%
+  last_fit(data_split)
+
+# Test metrics
+final_classtree_fit %>% 
+  collect_metrics()
+```
+```{r}
+library(rpart.plot)
+final_classtree <- extract_workflow(final_classtree_fit)
+```
+Visulize the final classification tree
+```{r}
+final_classtree %>%
+  extract_fit_engine() %>%
+  rpart.plot(roundint = FALSE)
+```
+Variables importance
+```{r}
+library(vip)
+
+final_classtree %>% 
+  extract_fit_parsnip() %>% 
+  vip()
+```
+Summary: The final classification tree model has depth of 7 and cost complexity of 0.0175. The 3 most important variables are `ShelveLoc_Good`, `Price` and `ComPrice`, which means that wether the shelving location is good, the price of the car seat, the price of the competition car seat are the most important predictors to predict if `Sales > 8` or not. The model estimate new `Sales_bi` catergory by the majority class in the terminal nodes(leaves) and has a very good performance with accuracy of 0.81 and ROC AUC of 0.88.
+
+
+**Train random forest**
+
+Random forest model
+```{r}
+rf_mod <- 
+  rand_forest(
+    mode = "classification",
+    mtry = tune(),
+    trees = tune()
+  ) %>% 
+  set_engine("ranger")
+rf_mod
+```
+Set workflow
+```{r}
+rf_wf <- workflow() %>%
+  add_recipe(class_rec) %>%
+  add_model(rf_mod)
+rf_wf
+```
+Tuning grid
+```{r}
+rf_grid <- grid_regular(
+  trees(range = c(100L, 500L)),
+  mtry(range = c(1L, 5L)),
+  levels = c(10, 5)
+  )
+```
+10-fold Cross-validation
+```{r}
+set.seed(123)
+
+folds <- vfold_cv(Carseats_train, v = 10)
+folds
+```
+Fit cross-validation
+```{r}
+rf_fit <- rf_wf %>%
+  tune_grid(
+    resamples = folds,
+    grid = rf_grid,
+    metrics = metric_set(accuracy, roc_auc)
+    )
+```
+Visualize CV results
+```{r}
+rf_fit %>%
+  collect_metrics() %>%
+  print(width = Inf) %>%
+  filter(.metric == "roc_auc") %>%
+  mutate(mtry = as.factor(mtry)) %>%
+  ggplot(mapping = aes(x = trees, y = mean, color = mtry)) +
+  # geom_point() + 
+  geom_line() + 
+  labs(x = "Num. of Trees", y = "CV ROC AUC")
+```
+Finalize random forest model
+```{r}
+rf_fit %>%
+  show_best("roc_auc")
+
+best_rf <- rf_fit %>%
+  select_best("roc_auc")
+best_rf
+```
+Final workflow
+```{r}
+final_rf_wf <- rf_wf %>%
+  finalize_workflow(best_rf)
+final_rf_wf
+```
+Fit the whole training set, then predict the test cases
+```{r}
+final_rf_fit <- 
+  final_rf_wf %>%
+  last_fit(data_split)
+
+# Test metrics
+final_rf_fit %>% 
+  collect_metrics()
+```
+Summary: Random forest algorithm grow multiple decision trees, the final random forest model has 411 trees and 5 predictors randomly sampled in each split. Random forest estimate new `Sales_bi` by the majority vote across all trees in classification problem and has a good performance with accuracy of 0.80 and ROC AUC of 0.88.
+
+**Train gradient boosting**
+Gradient boosting model
+```{r}
+gb_mod <- 
+  boost_tree(
+    mode = "classification",
+    trees = 1000, 
+    tree_depth = tune(),
+    learn_rate = tune()
+  ) %>% 
+  set_engine("xgboost")
+gb_mod
+```
+Set workflow
+```{r}
+gb_wf <- workflow() %>%
+  add_recipe(class_rec) %>%
+  add_model(gb_mod)
+gb_wf
+```
+Tuning grid
+```{r}
+gb_grid <- grid_regular(
+  tree_depth(range = c(1L, 5L)),
+  learn_rate(range = c(-5, 0), trans = log10_trans()),
+  levels = c(5, 20)
+  )
+gb_grid
+```
+10-fold Cross-validation
+```{r}
+set.seed(123)
+
+folds <- vfold_cv(Carseats_train, v = 10)
+```
+Fit cross-validation
+```{r}
+gb_fit <- gb_wf %>%
+  tune_grid(
+    resamples = folds,
+    grid = gb_grid,
+    metrics = metric_set(accuracy, roc_auc)
+    )
+```
+Visualize CV results
+```{r}
+gb_fit %>%
+  collect_metrics() %>%
+  print(width = Inf) %>%
+  filter(.metric == "roc_auc") %>%
+  mutate(tree_depth = as.factor(tree_depth)) %>%
+  ggplot(mapping = aes(x = learn_rate, y = mean, color = tree_depth)) +
+  geom_point() + 
+  geom_line() + 
+  labs(x = "Learning Rate", y = "CV ROC AUC", color = "tree_depth") 
+```
+Finalize gradient boosting model
+```{r}
+gb_fit %>%
+  show_best("roc_auc")
+
+best_gb <- gb_fit %>%
+  select_best("roc_auc")
+best_gb
+```
+Final workflow
+```{r}
+final_gb_wf <- gb_wf %>%
+  finalize_workflow(best_gb)
+
+final_gb_wf
+```
+Fit the whole training set, then predict the test cases
+```{r}
+final_gb_fit <- 
+  final_gb_wf %>%
+  last_fit(data_split)
+
+# Test metrics
+final_gb_fit %>% 
+  collect_metrics()
+```
+Summary: Gradient Boosting builds trees in a sequential manner, where each new tree aims to correct the errors made by the previous ones. The final gradient boosting model has 1000 trees, tree depth of 1, and 0.0886 learning rate. The model estimates new `Sales_bi` catergory by adding trees that predict the residuals or errors of prior trees and it has the best performance with accuracy of 0.88 and ROC AUC of 0.95 in test set.
+
+**Compare Performance**
+```{r}
+final_classtree_fit %>% 
+  collect_metrics() %>%
+  mutate(model = "Classification Tree") %>%
+  bind_rows(
+    final_rf_fit %>% collect_metrics() %>%
+      mutate(model = "Random Forest"),
+    final_gb_fit %>% collect_metrics() %>%
+      mutate(model = "Gradient Boosting")
+  ) %>%
+  select(model, .metric, .estimate) %>%
+  spread(.metric, .estimate)
+```
+

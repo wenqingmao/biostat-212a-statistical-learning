@@ -1,0 +1,804 @@
+---
+title: "Biostat 212A Homework 3"
+subtitle: "Due Feb 20, 2024 @ 11:59PM"
+author: "Wenqing Mao, UID:806332971"
+date: today
+format:
+  html:
+    theme: cosmo
+    embed-resources: true
+    number-sections: true
+    toc: true
+    toc-depth: 4
+    toc-location: left
+    code-fold: false
+engine: knitr
+knitr:
+  opts_chunk: 
+    fig.align: 'center'
+    # fig.width: 6
+    # fig.height: 4
+    message: FALSE
+    cache: false
+---
+
+## ISL Exercise 5.4.2 (10pts)
+
+**Answer:**
+
+**(a)** $\frac{n-1}{n}$, there are n observations in total, and except for the jth observation, we can select the rest n-1 observations.
+
+**(b)** $\frac{n-1}{n}$, as we sample with replacement, the probability of not selecting the jth observation is same as that in part (a).
+
+**(c)** The probability of not selecting the jth observation for a single draw is  $\frac{n-1}{n}=1-\frac{1}{n}$. The jth observation is not in the bootstrap sample occurs when it is not selected for all n draws. As each draw is indeopendent with each other, the probability of not selecting the jth observation for n draws is $(1-\frac{1}{n})^n$.
+
+**(d)** When $n=5$, the probability that the jth observation is in the bootstrap sample is $1-(1-\frac{1}{5})^5=1-(\frac{4}{5})^5 \approx 1-0.33 \approx 0.67$.
+
+**(e)** When $n=100$, the probability that the jth observation is in the bootstrap sample is $1-(1-\frac{1}{100})^{100}=1-(\frac{99}{100})^{100} \approx 1-0.37 \approx 0.63$.
+
+**(f)** When $n=10000$, the probability that the jth observation is in the bootstrap sample is $1-(1-\frac{1}{10000})^{10000}=1-(\frac{9999}{10000})^{10000} \approx 1-0.37 \approx 0.63$.
+
+**(g)** 
+Create a plot that displays, for each integer value of n from 1 to 100,000, the probability that the jth observation is in the bootstrap sample. Comment on what you observe.
+
+```{r}
+library(ggplot2)
+
+n <- 1:100000
+prob <- 1-(1-1/n)^n
+ggplot(data=data.frame(n=n, prob=prob), aes(x=n, y=prob)) + 
+  geom_line() + 
+  labs(title="Probability of jth observation in bootstrap sample", x="n", y="Probability")
+```
+THe probability drops dramatically at the beginning and then stabilizes at around 0.63.
+
+**(h)** 
+
+```{r}
+store <- rep(NA, 10000) 
+for (i in 1:10000) {
+  store[i] <- sum(sample(1:100, rep=TRUE) == 4) > 0 
+  }
+mean(store)
+```
+The result got from simulation is around 0.63, which is aligned with the result from part (f).
+
+## ISL Exercise 5.4.9 (20pts)
+
+**Answer:**
+
+```{R}
+library(tidyverse)
+
+Boston <- read_csv("https://raw.githubusercontent.com/ucla-biostat-212a/2024winter/master/slides/data/Boston.csv", col_select = -1) %>% 
+  print(width = Inf)
+```
+**(a)**
+We use sample mean to eatimate the population mean.
+```{r}
+mu_hat <- mean(Boston$medv)
+mu_hat
+```
+
+**(b)**
+We can get standard error of the sample mean by dividing the sample standard deviation by the square root of the sample size.
+```{r}
+se_hat <- sd(Boston$medv)/sqrt(nrow(Boston))
+se_hat
+```
+
+**(c)**
+```{r}
+# define standard error function
+se.fn <- function(data, index) {
+  se <- sd(data$medv[index])/sqrt(length(data$medv[index]))
+  return(se)
+}
+
+# bootstrap
+library(boot)
+set.seed(5)
+boot_result <- boot(data=Boston, statistic=se.fn, R=1000)
+boot_result
+```
+The estimated standard error using bootstrap method is 0.4089, which is same as the result from part (b).
+
+**(d)**
+```{r}
+se_boot <- boot_result$t0
+
+# calculate lower bound
+mu_hat - 2 * se_boot
+
+# calculate upper bound
+mu_hat + 2 * se_boot
+```
+
+```{r}
+t.test(Boston$medv)$conf.int
+```
+The 95% confidence interval for the mean of medv is [21.72, 23.35] using bootstrap method, and [21.73, 23.34] using t.test method. The cinfudence interval from bootstrap method is slightly wider than that from t.test method.
+
+**(e)**
+```{r}
+median(Boston$medv)
+```
+
+**(f)**
+Wenowwouldliketoestimatethestandarderrorofμˆmed.Unfor- tunately, there is no simple formula for computing the standard error of the median. Instead, estimate the standard error of the median using the bootstrap. Comment on your findings.
+
+```{r}
+### define standard error function
+med.fn <- function(data, index) {
+  med <- median(data$medv[index])
+}
+
+# bootstrap
+set.seed(5)
+boot(data=Boston, statistic=med.fn, R=1000)
+```
+The estimated standard error using bootstrap method is 0.38. The standard error of the median is smaller than that of the mean, which is 0.41.
+
+**(g)**
+```{r}
+quantile(Boston$medv, 0.1)
+```
+
+**(h)**
+```{r}
+# define the tenth quantile function
+quant.fn <- function(data, index) {
+  quant <- quantile(data$medv[index], 0.1)
+}
+
+# bootstrap
+set.seed(5)
+boot(data=Boston, statistic=quant.fn, R=1000)
+```
+The estimated standard error using bootstrap method is 0.49. The standard error of the tenth quantile is larger than that of the mean and median.
+
+## Least squares is MLE (10pts)
+Show that in the case of linear model with Gaussian errors, maximum likelihood and least squares are the same thing, and $C_p$ and AIC are equivalent.
+
+**Answer:**
+The likelihood function of the observed data given the parameters $\beta$ and $\sigma^2$ is
+$$
+L(\beta_0, \beta_1, \ldots, \beta_p, \sigma^2) = \prod_{i=1}^n \frac{1}{\sqrt{2\pi\sigma^2}} \exp\left(-\frac{(y_i - \beta_0 - \beta_1 x_{i1} - \ldots - \beta_p x_{ip})^2}{2\sigma^2}\right)
+$$
+Where estimated mean is $\mu = \beta_0 + \beta_1 x_{i1} + \ldots + \beta_p x_{ip}$, x_{ip} represents the $i$th predictor (p dimensions), and estimated variance is $\sigma^2$.
+
+The log likelihood function is
+$$
+\ell(\beta_0, \beta_1, \ldots, \beta_p, \sigma^2) = -\frac{n}{2} \log(2\pi) - \frac{n}{2} \log(\sigma^2) - \frac{1}{2\sigma^2} \sum_{i=1}^n (y_i - \beta_0 - \beta_1 x_{i1} - \ldots - \beta_p x_{ip})^2
+$$
+Eliminated the constant terms, the log likelihood function related with $\beta$ is
+$$
+\ell(\beta_0, \beta_1, \ldots, \beta_p, \sigma^2) = - \frac{1}{2\sigma^2} \sum_{i=1}^n (y_i - \beta_0 - \beta_1 x_{i1} - \ldots - \beta_p x_{ip})^2
+$$
+The maximum likelihood estimates of $\beta$ and $\sigma^2$ are the values that maximize the log likelihood function. As there is a minus sign in front of the quaratic term, we want the beta values that minimize the sum of squared residuals.
+Write the quaratic term in to matrix form, we can get
+$$
+\begin{align}
+\ell(\beta_0, \beta_1, \ldots, \beta_p, \sigma^2) &= - \frac{1}{2\sigma^2} (y - X\beta)^T(y - X\beta) \\
+\end{align}
+$$
+Take derivative of $\beta$ and set it to zero, we can get the MLE estimates of $\beta$.
+$$
+\begin{align}
+\frac{\partial \ell}{\partial \beta} &= - \frac{1}{2\sigma^2} 2 X^T(y - X\beta) \\
+&\Leftrightarrow X^T(y - X\beta) = 0 \\
+&\Leftrightarrow X^Ty - X^TX\beta = 0 \\
+&\Leftrightarrow X^TX\beta = X^Ty \\
+&\Leftrightarrow \hat{\beta} = (X^TX)^{-1}X^Ty
+\end{align}
+$$
+Which is the same as the estimated beta from least squares. Both MLE and least squares are trying to minimize the sum of squared residuals.
+$$
+argmin_{\beta} \sum_{i=1}^n (y_i - \beta_0 - \beta_1 x_{i1} - \ldots - \beta_p x_{ip})^2
+$$
+
+## ISL Exercise 6.6.1 (10pts)
+
+**Answer:**
+
+**(a)**
+The best subset model has the smallest training RSS. Because it tries all possible combinations of predictors, and pick the one with the lowest training RSS. Forward and backward stepwise selection may not find the best subset model, with training RSS larger than or equal to the best subset model.
+
+**(b)**
+It is not always the same model that achieve the best test RSS. When the number of predictors is large, the best subset model may overfit the model and have a larger test RSS than forward and backward stepwise selection. However, the forward and backward stepwise selection may miss best model sometimes because they do not try all possible combinations of predictors, and best subset model may have the smallest test RSS.
+
+**(c)**
+i. True. Forward stepwose selection starts with the null model and adds one variable at a time. When using forward selection method to determine the k+1 variable model, we will first reach the k variable model identified by forward stepwise selection. Then we add the k+1th variable to the k variable model.
+
+ii. False. Backward selection method starts with the all predictors in the model and removes one variable at a time. When using backward selection method to determine the (k+1)-variable model, we will stop at (k+1)-variables, and will not remove any variable from the (k+1)-variable model.
+
+iii. False. The forward and backward stepwise selection start with different models, and they may not select the same predictors for each k-variable model. To identify (k+1)-variable model by forward stepwise selection, we will first get a k-variable model, but the predictors are not nessarily the same as the k-variable model identified by backward stepwise selection.
+
+iv. False. Same as question iii, the predictors in the k-variable model identified by forward and backward stepwise selection are not nessarily the same.
+
+v. False. The best subset selection tries all possible combinations of predictors, and the combination of k predictors that gives the smallest RSS may not be a subset of the combination of k+1 predictors that gives the smallest RSS.
+
+## ISL Exercise 6.6.3 (10pts)
+
+**Answer:**
+
+**(a)**
+iv. Steadily decrease. Increasing constrains s is equavalent to decreasing $\lambda$ in lasso regression. When $\lambda=0$, the lasso regression is equal to the least squares regression which achieve the smallest training RSS. So, as we increase the constrains s, the training RSS will decrease until it reaches smallest RSS.
+
+**(b)**
+ii. Decrease initially, and then eventually start increasing in a U shape. When s is small, the $\lambda$ in penalty term is large, which will force parameters $beta$ to zero and the testing RSS is very large. As s increases, the $\lambda$ decreases, and the testing RSS will decrease. However, when s is too large, $\lambda$ is approaching zero, lasso regression will overfit the training error and the testing RSS will increase.
+
+**(c)**
+iii. Steadily increase. A small s will force some of parameters $beta$ to zero, and the variance is small with a simpler model. As s increases, less beta will be set to zero, the model become more complex and the variance will increase accordingly.
+
+**(d)**
+iv. Steadily decrease. Same as part (c), a small s will force some of parameters $beta$ to zero, and the bias is large because the simplified model may not capture the true relationship between predictors and response. As s increases, less beta will be set to zero, the model become more complex and the bias will decrease accordingly.
+
+**(e)** Remain constant. The error that can't be reduced by any model no matter how complex it is, it is independt with our model.
+
+## ISL Exercise 6.6.4 (10pts)
+
+**Answer:**
+
+**(a)** iii Steadily increase. As ridge regression introduce a penalty term to the least squares, it will force the fitted model away from least squares estimates. When $\lambda=0$, the ridge regression is equal to the leasr square regression which always minimize the training RSS. And as $\lambda$ increases, the penalty term will increase, and the training RSS will increase.
+
+**(b)** ii Decrease initially, and then eventually start increasing in a U shape. The penaty term try to prevent the overfitting of training data, so the test RSS will decrease initially. However, when $\lambda$ is too large, the penalty term will force the parameter estimates to zero, and the test RSS will increase.
+
+**(c)** iv Steadily decrease. The variance of the parameter estimates will decrease as $\lambda$ increases, because the parameter $\beta$ is shrunk to close to zero and the variance is also appraching to zero. This prevent the overfitting of the training data.
+
+**(d)** iii Steadily increase. The bias of the parameter estimates will increase as $\lambda$ increases, because the parameter $\beta$ is shrunk to close to zero, which means we are reducing the felexibility of the model. When $\lambda$ is too large, the parameter estimates will be close to zero, and the bias will be large.
+
+**(e)** v. Remain constant. The error that can't be reduced by any model no matter how complex it is, it is independt with our model.
+
+## ISL Exercise 6.6.5 (10pts)
+It is well-known that ridge regression tends to give similar coefficient values to correlated variables, whereas the lasso may give quite dif- ferent coefficient values to correlated variables. We will now explore this property in a very simple setting.
+Suppose that n = 2, p = 2, x11 = x12, x21 = x22. Furthermore, supposethaty1+y2 =0andx11+x21 =0andx12+x22 =0,sothat the estimate for the intercept in a least squares, ridge regression, or lasso model is zero: βˆ0 = 0.
+
+**Answer:**
+
+**(a)** 
+
+We have two observations $X_1=\begin{bmatrix}x_{11}\\x_{12}\end{bmatrix}$ and $X_2=\begin{bmatrix}x_{21}\\x_{22}\end{bmatrix}$, and the response $y_1$ and $y_2$ satisfy $y_1+y_2=0$. 
+
+The ridge regression optimization problem is to find the values of $\hat{\beta}=\begin{bmatrix}\hat{\beta_1}\\\hat{\beta_2}\end{bmatrix}$ that minimize the following objective function:
+$$
+\sum_{i=1}^2(y_i-\beta_0-\beta_1x_{i1}-\beta_2x_{i2})^2+\lambda\sum_{j=1}^2\beta_j^2
+$$
+
+**(b)**
+
+Take the derivative of the objective function with respect to $\hat{\beta_1}$ and $\hat{\beta_2}$, we have:
+$$
+\begin{align*}
+\frac{\partial}{\partial\beta_1}&=-2\sum_{i=1}^2x_{i1}(y_i-\beta_0-\beta_1x_{i1}-\beta_2x_{i2})+2\lambda\beta_1\\
+\frac{\partial}{\partial\beta_2}&=-2\sum_{i=1}^2x_{i2}(y_i-\beta_0-\beta_1x_{i1}-\beta_2x_{i2})+2\lambda\beta_2
+\end{align*}
+$$
+Set them to zero, we can get:
+$$
+\begin{align*}
+\hat{\beta_1}&=\frac{\sum_{i=1}^2x_{i1}y_i-\hat{\beta_0}(x_{11}+x_{21})-\hat{\beta_2}(x_{11}x_{12}+x_{21}x_{22})}{\sum_{i=1}^2x_{i1}^2+\lambda}\\
+\hat{\beta_2}&=\frac{\sum_{i=1}^2x_{i2}y_i-\hat{\beta_0}(x_{12}+x_{22})-\hat{\beta_1}(x_{11}x_{12}+x_{21}x_{22})}{\sum_{i=1}^2x_{i2}^2+\lambda}
+\end{align*}
+$$
+As we know that $\hat{\beta_0}=0$, $x_{11}+x_{21}=0$, $x_{12}+x_{22}=0$ and $x_{11}=x_{12}$, $x_{21}=x_{22}$, we can get:
+$$
+\begin{align*}
+\hat{\beta_1}&=\frac{2x_{11}y_1-\hat{\beta_2}(x_{11}^2+x_{21}^2)}{2x_{11}^2+\lambda}\\
+\hat{\beta_2}&=\frac{2x_{11}y_1-\hat{\beta_1}(x_{11}^2+x_{21}^2)}{2x_{21}^2+\lambda}
+\end{align*}
+$$
+Thus, we can see that the ridge coefficient estimates satisfy $\hat{\beta_1}=\hat{\beta_2}$.
+
+
+**(c)**
+The lasso regression optimization problem is to find the values of $\hat{\beta}=\begin{bmatrix}\hat{\beta_1}\\\hat{\beta_2}\end{bmatrix}$ that minimize the following objective function:
+$$
+\sum_{i=1}^2(y_i-\beta_0-\beta_1x_{i1}-\beta_2x_{i2})^2+\lambda\sum_{j=1}^2|\beta_j|
+$$
+
+**(d)**
+Take the derivative of the objective function with respect to $\hat{\beta_1}$ and $\hat{\beta_2}$, we have:
+$$
+\begin{align*}
+\frac{\partial}{\partial\beta_1}&=-2\sum_{i=1}^2x_{i1}(y_i-\beta_0-\beta_1x_{i1}-\beta_2x_{i2})+\lambda sign(\beta_1)\\
+\frac{\partial}{\partial\beta_2}&=-2\sum_{i=1}^2x_{i2}(y_i-\beta_0-\beta_1x_{i1}-\beta_2x_{i2})+\lambda sign(\beta_2)
+\end{align*}
+$$
+Given that $\hat{\beta_0}=0$, $x_{11}+x_{21}=0$, $x_{12}+x_{22}=0$ and $x_{11}=x_{12}$, $x_{21}=x_{22}$, we know that the first terms in the two derivatives are same. set the two derivatives to zero, we can get:
+$$
+\begin{align}
+\lambda sign(\hat{\beta_1}) = \lambda sign(\hat{\beta_2})
+\end{align}
+$$
+which does not have a unique solution, so the lasso may give quite different coefficient values to correlated variables.
+
+## ISL Exercise 6.6.11 (30pts)
+
+You must follow the [typical machine learning paradigm](https://ucla-biostat-212a.github.io/2024winter/slides/06-modelselection/workflow_lasso.html) to compare _at least_ 3 methods: least squares, lasso, and ridge. Report final results as
+
+| Method | CV RMSE | Test RMSE |
+|:------:|:------:|:------:|:------:|
+| LS | | | |
+| Ridge | | | |
+| Lasso | | | |
+| ... | | | |
+
+**Answer:**
+
+**(a)**
+```{r}
+library(GGally) 
+library(tidyverse)
+library(tidymodels)
+library(glmnet)
+
+Boston <- read_csv("https://raw.githubusercontent.com/ucla-biostat-212a/2024winter/master/slides/data/Boston.csv", col_select = -1) %>% 
+  print(width = Inf)
+```
+Numerical and graphical summaries
+```{r}
+summary(Boston)
+```
+```{r,  fig.width=12, fig.height=12, message = FALSE}
+ggpairs(Boston, lower=list(continuous=wrap("points", alpha=0.3, size=0.3)),
+        diag=list(continuous='barDiag')) + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 3))
+```
+
+Split data into test and train sets
+```{r}
+set.seed(200)
+
+data_split <- initial_split(
+  Boston, 
+  prop = 0.75
+  )
+
+Boston_train <- training(data_split)
+dim(Boston_train)
+
+Boston_test <- testing(data_split)
+dim(Boston_test)
+```
+
+Center and scale predictors using recipe
+```{r}
+norm_recipe <- 
+  recipe(
+    crim ~ ., 
+    data = Boston_train
+  ) %>%
+  # create traditional dummy variables
+  step_dummy(all_nominal()) %>%
+  # zero-variance filter
+  step_zv(all_predictors()) %>% 
+  # center and scale numeric data
+  step_normalize(all_predictors())
+norm_recipe
+```
+**Train least square models**
+Fit least squares model
+```{r}
+linear_model <- linear_reg() %>%
+  set_engine("lm") %>%
+  set_mode("regression")
+```
+Set workflow
+```{r}
+ls_wf <- 
+  workflow() %>%
+  add_model(linear_model) %>%
+  add_recipe(norm_recipe)
+```
+Fit least square model
+```{r}
+ls_fit <- fit(ls_wf, Boston_train)
+```
+Make predictions
+```{r}
+train_predictions <- predict(ls_fit, Boston_train)$.pred
+predictions <- predict(ls_fit, Boston_test)$.pred
+```
+Calculate train RMSE
+```{r}
+ls_train_mse <- mean((Boston_train$crim - train_predictions)^2)
+ls_train_rmse <- sqrt(ls_train_mse)
+cat("Train RMSE:", ls_train_rmse, "\n")
+```
+Calculate test RMSE
+```{r}
+ls_test_mse <- mean((Boston_test$crim - predictions)^2)
+ls_test_rmse <- sqrt(ls_test_mse)
+cat("Test RMSE:", ls_test_rmse, "\n")
+```
+
+**Train ridge models**
+```{r}
+ridge_mod <- 
+  # mixture = 0 (ridge), mixture = 1 (lasso)
+  linear_reg(penalty = tune(), mixture = 0.0) %>% 
+  set_engine("glmnet")
+```
+Set workflow
+```{r}
+rr_wf <- 
+  workflow() %>%
+  add_model(ridge_mod) %>%
+  add_recipe(norm_recipe)
+rr_wf
+```
+Set up tuning grid
+```{r}
+lambda_grid <-
+  grid_regular(penalty(range = c(-2, 3), trans = log10_trans()), levels = 100)
+lambda_grid
+```
+Cross-validation
+```{r}
+set.seed(515)
+folds <- vfold_cv(Boston_train, v = 10)
+folds
+```
+Fit cross-validation
+```{r}
+ridge_fit <- 
+  rr_wf %>%
+  tune_grid(
+    resamples = folds,
+    grid = lambda_grid
+    )
+ridge_fit
+```
+Visulaize cross-validation results
+```{r}
+ridge_fit %>%
+  collect_metrics() %>%
+  print(width = Inf) %>%
+  filter(.metric == "rmse") %>%
+  ggplot(mapping = aes(x = penalty, y = mean)) + 
+  geom_point() + 
+  geom_line() + 
+  labs(x = "Penalty", y = "CV RMSE") + 
+  scale_x_log10(labels = scales::label_number())
+```
+```{r}
+# Show the top 5 models 
+top_ridge <- ridge_fit %>%
+  show_best("rmse")
+
+# Select the best model
+best_ridge <- ridge_fit %>%
+  select_best("rmse")
+best_ridge
+
+ridge_rmse_cv <- top_ridge$mean[1]
+```
+Finalize ridge model
+```{r}
+final_ridge_wf <- rr_wf %>%
+  finalize_workflow(best_ridge)
+final_ridge_wf
+```
+Fit the final model and evaluate
+```{r}
+final_fit <- 
+  final_ridge_wf %>%
+  last_fit(data_split)
+final_fit$.metrics
+
+ridge_rmse_test <- final_fit$.metrics[[1]]$.estimate[1]
+```
+
+**Train lasso models**
+```{r}
+lasso_mod <- 
+  # mixture = 0 (ridge), mixture = 1 (lasso)
+  linear_reg(penalty = tune(), mixture = 1.0) %>% 
+  set_engine("glmnet")
+lasso_mod
+```
+Set workflow
+```{r}
+lr_wf <- 
+  workflow() %>%
+  add_model(lasso_mod) %>%
+  add_recipe(norm_recipe)
+lr_wf
+```
+Set up tuning grid
+```{r}
+lambda_grid <-
+  grid_regular(penalty(range = c(-2, 3), trans = log10_trans()), levels = 100)
+lambda_grid
+```
+Cross-validation
+```{r}
+set.seed(515)
+folds <- vfold_cv(Boston_train, v = 10)
+folds
+```
+Fit cross-validation
+```{r}
+lasso_fit <- 
+  lr_wf %>%
+  tune_grid(
+    resamples = folds,
+    grid = lambda_grid
+    )
+lasso_fit
+```
+Visulize the CV RMSE
+```{r}
+lasso_fit %>%
+  collect_metrics() %>%
+  print(width = Inf) %>%
+  filter(.metric == "rmse") %>%
+  ggplot(mapping = aes(x = penalty, y = mean)) + 
+  geom_point() + 
+  geom_line() + 
+  labs(x = "Penalty", y = "CV RMSE") + 
+  scale_x_log10(labels = scales::label_number())
+```
+```{r}
+# Get the top 5 models 
+top_lasso <- lasso_fit %>%
+  show_best("rmse")
+
+# Select the best model
+best_lasso <- lasso_fit %>%
+  select_best("rmse")
+best_lasso
+
+lasso_rmse_cv <- top_lasso$mean[1]
+```
+Finalize lasso model
+```{r}
+final_lasso_wf <- lr_wf %>%
+  finalize_workflow(best_lasso)
+final_lasso_wf
+```
+Fit the final model and evaluate
+```{r}
+final_fit <- 
+  final_lasso_wf %>%
+  last_fit(data_split)
+final_fit$.metrics
+
+lasso_rmse_test <- final_fit$.metrics[[1]]$.estimate[1]
+```
+
+**train best subset model**
+```{r}
+library(leaps)
+# best models per subset size
+bs_mod <- regsubsets(crim ~ ., 
+                    data = Boston, 
+                    nvmax = ncol(Boston) - 1, 
+                    method = "exhaustive")
+```
+
+Fit cross-validation and select best model
+```{r}
+library(leaps)
+library(rsample)
+library(dplyr)
+library(ggplot2)
+
+# Normalize the predictors
+predictors <- Boston %>% select(-crim)
+crim <- Boston$crim
+normalized_predictors <- as.data.frame(scale(predictors))
+norm_Boston <- cbind(normalized_predictors, crim = crim)
+
+# Initialize an empty data frame to store results
+results <- data.frame(size = integer(), rmse = numeric(), fold = integer())
+
+# Create a 10-fold cross-validation object
+set.seed(515)
+folds <- vfold_cv(norm_Boston, v = 10)
+
+# Perform 10-fold CV
+for(fold_idx in 1:10) {
+  # Split data into training and testing based on folds
+  training_set <- analysis(folds$splits[[fold_idx]])
+  testing_set <- assessment(folds$splits[[fold_idx]])
+  
+  # Iterate over possible numbers of predictors
+  for(num_predictors in 1:(ncol(training_set) - 1)) {
+    # Fit regsubsets model to training data with exhaustive search
+    fit <- regsubsets(crim ~ ., data = training_set, nvmax = num_predictors, method = "exhaustive")
+    summary_fit <- summary(fit)
+    
+    # Choose the best model based on some criterion, e.g., adjusted R-squared
+    best_model <- which.max(summary_fit$adjr2)
+    if(length(best_model) > 0 && !is.na(best_model)) {
+      # Extract the model formula
+      model_formula <- as.formula(paste("crim ~", paste(names(coef(fit, id = best_model))[-1], collapse = " + ")))
+      
+      # Fit the model to the training data
+      model <- lm(model_formula, data = training_set)
+      
+      # Predict on the testing set
+      predictions <- predict(model, newdata = testing_set)
+      
+      # Calculate RMSE
+      rmse <- sqrt(mean((predictions - testing_set$crim)^2))
+      
+      # Store results
+      results <- rbind(results, data.frame(size = num_predictors, rmse = rmse, fold = fold_idx))
+    }
+  }
+}
+
+# Aggregate results by size and calculate mean RMSE
+mean_results <- results %>%
+  group_by(size) %>%
+  summarize(mean_rmse = mean(rmse))
+
+```
+Visualize the results
+```{r}
+ggplot(mean_results, aes(x = size, y = mean_rmse)) +
+  geom_line() +  # Draw lines
+  geom_point() +  # Draw points
+  geom_text(aes(label = size), vjust = -0.5, size = 3) +  # Add text labels for each point
+  labs(x = "Number of Predictors", y = "Mean RMSE", title = "10-Fold CV Mean RMSE vs. Number of Predictors")
+```
+From the plot, we can see that when the number of predictors is 7, the mean RMSE is the lowest. Therefore, we will choose the model with 7 predictors.
+Finalize best subset model
+```{r}
+# Split the data into training and testing sets
+set.seed(200)
+split <- initial_split(norm_Boston, prop = 0.75)
+Boston_train <- training(split)
+Boston_test <- testing(split)
+
+# Fit the best model to the entire training set
+best_size <- which.min(mean_results$mean_rmse) #
+fit_best <- regsubsets(crim ~ ., data = Boston_train, nvmax = best_size, method = "exhaustive")
+
+# Get the formula of the best model
+summary_fit_best <- summary(fit_best)
+best_model_idx <- which.max(summary_fit_best$adjr2)
+bs_cv_rmse <- mean_results$mean_rmse[best_size]
+coefficients_best <- coef(fit_best, id = best_model_idx)
+
+# Construct the model formula from the best subset
+model_formula <- as.formula(paste("crim ~", paste(names(coefficients_best)[-1], collapse = " + ")))
+
+# Fit the final model using lm() for the entire training dataset
+final_fit <- lm(model_formula, data = Boston_train)
+```
+Evaluate the best subset model
+```{r}
+predictions <- predict(final_fit, newdata = Boston_test)
+
+# Calulate test RMSE
+bs_test_mse <- mean((Boston_test$crim - predictions)^2)
+bs_test_rmse <- sqrt(bs_test_mse)
+cat("Test RMSE:", bs_test_rmse, "\n")
+```
+
+
+Summary the results
+```{r}
+models <- c("Least Squares", "Ridge", "Lasso", "Best Subset")
+cv_rmse <- c(ls_train_rmse, ridge_rmse_cv, lasso_rmse_cv, bs_cv_rmse)
+test_rmse <- c(ls_test_rmse, ridge_rmse_test, lasso_rmse_test, bs_test_rmse)
+
+df_rmse <- as.data.frame(matrix(NA, nrow = length(models), ncol = 3))
+colnames(df_rmse) <- c("Method", "CV RMSE", "Test RMSE")
+df_rmse$Method <- models
+df_rmse$`CV RMSE` <- cv_rmse
+df_rmse$`Test RMSE` <- test_rmse
+df_rmse
+```
+From the table above, we can see that the ridge model and lasso model have relatively low cross-validation RMSE. However, the best subset model has the lowest test RMSE. This suggests that, in terms of prediction accuracy, the best subset model is the best model among the four models we have considered.
+
+**(b)**
+In part (a), the best subset model performs the best in terms of prediction accuracy. And the fitted model contains 7 predictors:
+```{r}
+final_fit
+```
+However, the best subset model is not necessarily the best model in practice. A non-linear model may perform better than the linear model. We will use the selected seven predictors and make some transformations. From the scatter plot in the beginning, we notice that `nox`, `dis` and `medv` may have non-linear relationship with `crim`, so we will take the square of these three predictors.
+
+```{r}
+# Splite the data into training and testing sets
+set.seed(200)
+split <- initial_split(Boston, prop = 0.75)
+Boston_train <- training(split)
+Boston_test <- testing(split)
+
+# Fit the model on the training set
+nl_mod <- lm(crim ~ zn + indus + nox + I(nox^2) + dis + I(dis^2) + rad + ptratio + medv + I(medv^2), 
+             data = Boston_train)
+
+# Predict on the testing set
+nl_predictions <- predict(nl_mod, newdata = Boston_test)
+
+# Calculate RMSE
+nl_rmse <- sqrt(mean((nl_predictions - Boston_test$crim)^2))
+cat("Test RMSE for the non-linear model:", nl_rmse, "\n")
+```
+In terms of prediction accuracy, the non-linear model performs better than all the four models in part (a) which has a test RMSE of 5.96.
+
+**(c)**
+Does your chosen model involve all of the features in the data set? Why or why not?
+My chosen model is a non-linear model contains 10 predictors as follows:
+```{r}
+summary(nl_mod)
+```
+The model doesn't involve all of the features in the data set, because some predictors may not contribute to the prediction of `crim`. To prevent overfitting, we should only include the predictors that are useful for the prediction. This is shown in the best subset model, where we selected only 7 predictors.
+
+## Bonus question (20pts)
+
+Consider a linear regression, fit by least squares to a set of training data $(x_1, y_1), \ldots, (x_N,  y_N)$ drawn at random from a population. Let $\hat \beta$ be the least squares estimate. Suppose we have some test data $(\tilde{x}_1, \tilde{y}_1), \ldots, (\tilde{x}_M, \tilde{y}_M)$ drawn at random from the same population as the training data. If $R_{\text{train}}(\beta) = \frac{1}{N} \sum_{i=1}^N (y_i - \beta^T x_i)^2$ and $R_{\text{test}}(\beta) = \frac{1}{M} \sum_{i=1}^M (\tilde{y}_i - \beta^T \tilde{x}_i)^2$. Show that
+$$
+\operatorname{E}[R_{\text{train}}(\hat{\beta})] < \operatorname{E}[R_{\text{test}}(\hat{\beta})].
+$$
+
+**Answer:**
+**Try method 1:**
+For training data, we have a $\hat{\beta}$ that minimize the sum of squared residuals which can be expressed as:
+$$
+\hat{\beta} = \arg\min_{\beta} \frac{1}{N} \sum_{i=1}^N (y_i - \beta^T x_i)^2
+$$
+Per the definition of least square, any other $\beta$ will have a larger sum of squared residuals than $\hat{\beta}$, i.e.:
+$$
+\frac{1}{N} \sum_{i=1}^N (y_i - \hat{\beta}^T x_i)^2 \leq \frac{1}{N} \sum_{i=1}^N (y_i - \beta^T x_i)^2
+$$
+Similarly, for test data, we also have a specific $\tilde{\beta}$ that minimize the sum of squared residuals on testing set which can be expressed as:
+$$
+\tilde{\beta} = \arg\min_{\beta} \frac{1}{M} \sum_{i=1}^M (\tilde{y}_i - \beta^T \tilde{x}_i)^2
+$$
+And any other $\beta$ will have a larger sum of squared residuals than $\tilde{\beta}$, i.e.:
+$$
+\frac{1}{M} \sum_{i=1}^M (\tilde{y}_i - \tilde{\beta}^T \tilde{x}_i)^2 \leq \frac{1}{M} \sum_{i=1}^M (\tilde{y}_i - \beta^T \tilde{x}_i)^2
+$$
+For any $\beta$, as both the train and the test data come from the same distribution, we have:
+$$
+\frac{1}{N} \sum_{i=1}^N (y_i - \beta^T x_i)^2=\frac{1}{M} \sum_{i=1}^M (\tilde{y}_i - \beta^T \tilde{x}_i)^2
+$$
+Here, the $\hat{\beta}$ is the "other" $beta$ with respect to the training data, Thus, we prove that:
+$$
+\operatorname{E}[R_{\text{train}}(\hat{\beta})] < \operatorname{E}[R_{\text{test}}(\hat{\beta})]
+$$
+
+
+**Try method 2:**
+As the observations are drawn at random from the same population, we can assume that the training and test data are independent and identically distributed. And consider the linearity of expectation, we have:
+$$
+\begin{align}
+\operatorname{E}[R_{\text{train}}(\hat{\beta})] &= \operatorname{E}\left[\frac{1}{N} \sum_{i=1}^N (y_i - \hat{\beta}^T x_i)^2\right] \\
+&= \frac{1}{N} \sum_{i=1}^N \operatorname{E}\left[(y_i - \hat{\beta}^T x_i)^2\right] \\
+&= \operatorname{E}\left[(y_i - \hat{\beta}^T x_i)^2\right]
+\end{align}
+$$
+
+We can use bias-variance decomposition to express $\operatorname{E}\left[(y_i - \hat{\beta}^T x_i)^2\right]$:
+$$
+\begin{align}
+\operatorname{E}\left[(y_i - \hat{\beta}^T x_i)^2\right] &= \operatorname{E}\left[(y_i - \operatorname{E}[\hat{\beta}^T x_i] + \operatorname{E}[\hat{\beta}^T x_i] - \hat{\beta}^T x_i)^2\right] \\
+&= \operatorname{E}\left[(y_i - \operatorname{E}[\hat{\beta}^T x_i])^2\right] + \operatorname{E}\left[(\operatorname{E}[\hat{\beta}^T x_i] - \hat{\beta}^T x_i)^2\right] + 2\operatorname{E}\left[(y_i - \operatorname{E}[\hat{\beta}^T x_i])(\operatorname{E}[\hat{\beta}^T x_i] - \hat{\beta}^T x_i)\right] \\
+&= \operatorname{E}\left[(y_i - \operatorname{E}[\hat{\beta}^T x_i])^2\right] + \operatorname{E}\left[(\operatorname{E}[\hat{\beta}^T x_i] - \hat{\beta}^T x_i)^2\right] + 2\operatorname{E}\left[(y_i - \operatorname{E}[\hat{\beta}^T x_i])\right]\operatorname{E}\left[(\operatorname{E}[\hat{\beta}^T x_i] - \hat{\beta}^T x_i)\right] \\
+&= \operatorname{E}\left[(y_i - \operatorname{E}[\hat{\beta}^T x_i])^2\right] + \operatorname{E}\left[(\operatorname{E}[\hat{\beta}^T x_i] - \hat{\beta}^T x_i)^2\right] \\
+&= \operatorname{E}\left[(y_i - \operatorname{E}[\hat{y_i}])^2\right] + var(\hat{\beta}^T x_i) \quad \text{(1)}
+\end{align}
+$$
+Similar like above, for test data, we have:
+$$
+\begin{align}
+\operatorname{E}\left[(\tilde{y}_i - \hat{\beta}^T \tilde{x}_i)^2\right] &= \operatorname{E}\left[(\tilde{y}_i - \operatorname{E}[\hat{\beta}^T \tilde{x}_i])^2\right] + var(\hat{\beta}^T \tilde{x}_i) \quad \text{(2)}
+\end{align}
+$$
+From the nature of least regression, we know that $\hat{\beta}$ is the eatimate that minimize the training MSE, that is
+$$
+\hat{\beta} = argmin_{\beta} \frac{1}{N} \sum_{i=1}^N (y_i - \beta^T x_i)^2 \\
+Unbiasness: \operatorname{E}[\hat{\beta}] = \beta
+$$
+So, the bias term in (1) and (2) are same. However, the variance term in (1) is the training variance, and the variance term in (2) is the test variance. For the training error, the variance term will be smaller because the model is fit on the training data. However, for the test error, the variance term will typically be larger because the estimator has not seen the test data before, and hence, the predictions will vary more for the test data than they did for the training data.
+
+
